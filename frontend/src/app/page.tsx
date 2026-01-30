@@ -14,12 +14,60 @@ import {
   Search,
   Users,
   TrendingUp,
-  Clock
+  Clock,
+  Play,
+  FlaskConical
 } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const AGENT_ID = 'demo-agent-001';
+
+// Mock customer data for testing
+const MOCK_CUSTOMERS = [
+  {
+    _id: 'mock-customer-1',
+    phoneNumber: '+919876543210',
+    name: 'Sarah Chen',
+    email: 'sarah.chen@vertex.com',
+    status: 'vip',
+    metadata: {
+      company: 'Vertex Dynamics',
+      lifetimeValue: 12450,
+      averageRating: 4.8,
+      totalCalls: 15,
+      notes: 'Premium member, prefers quick resolutions'
+    }
+  },
+  {
+    _id: 'mock-customer-2',
+    phoneNumber: '+919876543211',
+    name: 'Rahul Sharma',
+    email: 'rahul@techcorp.in',
+    status: 'active',
+    metadata: {
+      company: 'TechCorp India',
+      lifetimeValue: 8200,
+      averageRating: 4.2,
+      totalCalls: 8,
+      notes: 'Regular customer, interested in enterprise plans'
+    }
+  },
+  {
+    _id: 'mock-customer-3',
+    phoneNumber: '+919876543212',
+    name: 'Priya Patel',
+    email: 'priya@startup.io',
+    status: 'new',
+    metadata: {
+      company: 'Startup.io',
+      lifetimeValue: 1500,
+      averageRating: 0,
+      totalCalls: 1,
+      notes: 'New customer, onboarding call'
+    }
+  }
+];
 
 export default function DashboardHome() {
   const router = useRouter();
