@@ -3,19 +3,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
-import { 
-  Customer, 
-  TranscriptionEntry, 
+import {
+  Customer,
+  TranscriptionEntry,
   AISuggestion,
   IncomingCall
 } from '@/types';
 import { customersApi, aiApi } from '@/lib/api';
-import { 
-  Home, 
-  MessageSquare, 
-  Settings, 
-  Shield, 
-  Phone, 
+import {
+
+  Home,
+  MessageSquare,
+  Settings,
+  Shield,
+  Phone,
   PhoneOff,
   Mail,
   Mic,
@@ -29,6 +30,8 @@ import {
   Users
 } from 'lucide-react';
 import axios from 'axios';
+import VisualizerScene from '@/components/visualizer/VisualizerScene';
+import TranscriptionOverlay from '@/components/visualizer/TranscriptionOverlay';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const AGENT_ID = 'demo-agent-001';
@@ -37,14 +40,14 @@ export default function InteractionPage() {
   const params = useParams();
   const router = useRouter();
   const callId = params.id as string;
-  
-  const { 
+
+  const {
     isConnected,
     onTranscriptionUpdate,
     onAISuggestion,
     onCallEnded
   } = useSocket();
-  
+
   // State
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [transcription, setTranscription] = useState<TranscriptionEntry[]>([]);
@@ -59,6 +62,51 @@ export default function InteractionPage() {
   const [messageInput, setMessageInput] = useState('');
   const [isMockCall, setIsMockCall] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // Audio Visualizer State
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const [isMicActive, setIsMicActive] = useState(false);
+  const [isCustomerSpeaking, setIsCustomerSpeaking] = useState(false);
+
+  // Monitor transcription changes to simulate audio for customer
+  useEffect(() => {
+    if (transcription.length > 0) {
+      const lastEntry = transcription[transcription.length - 1];
+      if (lastEntry.speaker === 'customer') {
+        setIsCustomerSpeaking(true);
+        // Stop speaking animation after 2 seconds (simulated processing time)
+        const timer = setTimeout(() => setIsCustomerSpeaking(false), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [transcription]);
+
+  // Initialize Audio Context on Mount
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = audContext.createMediaStreamSource(stream);
+        const analyserNode = audContext.createAnalyser();
+        analyserNode.fftSize = 256;
+        source.connect(analyserNode);
+
+        setAudioContext(audContext);
+        setAnalyser(analyserNode);
+        setIsMicActive(true);
+      } catch (err) {
+        console.error('Error accessing microphone:', err);
+      }
+    };
+
+    initAudio();
+
+    return () => {
+      audioContext?.close();
+    };
+  }, []);
 
   // Mock conversation data for testing
   const MOCK_CONVERSATION = [
@@ -78,12 +126,12 @@ export default function InteractionPage() {
   useEffect(() => {
     const storedCall = sessionStorage.getItem('activeCall');
     const mockCallFlag = sessionStorage.getItem('isMockCall');
-    
+
     if (storedCall) {
       const callData: IncomingCall = JSON.parse(storedCall);
       setCustomer(callData.customer);
       setCallStartTime(new Date());
-      
+
       if (mockCallFlag === 'true') {
         // This is a mock call - simulate conversation
         setIsMockCall(true);
@@ -103,9 +151,9 @@ export default function InteractionPage() {
   const startMockConversation = () => {
     setIsDialing(true);
     setDialStatus('🧪 Mock Mode - Simulating conversation...');
-    
+
     setTimeout(() => setIsDialing(false), 2000);
-    
+
     // Add messages one by one with delays
     MOCK_CONVERSATION.forEach((msg, index) => {
       setTimeout(() => {
@@ -115,12 +163,12 @@ export default function InteractionPage() {
           timestamp: new Date(),
           confidence: 1.0
         }]);
-        
+
         // Update sentiment based on customer messages
         if (msg.speaker === 'customer' && (msg.text.includes('frustrated') || msg.text.includes('expected better'))) {
           setCurrentSentiment('negative');
         }
-        
+
         // Add AI suggestions after a few messages
         if (index === 2) {
           setSuggestions(MOCK_SUGGESTIONS);
@@ -133,7 +181,7 @@ export default function InteractionPage() {
   const dialAgentPhone = async (callData: IncomingCall) => {
     setIsDialing(true);
     setDialStatus('Calling your phone...');
-    
+
     try {
       const conferenceName = callData.conferenceName || `call-${callData.callId}`;
       await axios.post(`${API_URL}/api/twilio/join-call`, {
@@ -178,7 +226,7 @@ export default function InteractionPage() {
         timestamp: new Date(data.timestamp),
         confidence: 1.0
       }]);
-      
+
       if (data.sentiment) {
         setCurrentSentiment(data.sentiment.sentiment);
       }
@@ -225,16 +273,16 @@ export default function InteractionPage() {
 
   const handleRefreshSuggestions = async () => {
     if (transcription.length === 0) return;
-    
+
     setIsSuggestionsLoading(true);
-    
+
     try {
       const res = await aiApi.getSuggestions({
         conversationId: callId,
         lastMessage: transcription[transcription.length - 1]?.text,
         history: transcription.map(t => ({ speaker: t.speaker, text: t.text }))
       });
-      
+
       if (res.data.success && res.data.data) {
         setSuggestions(res.data.data.suggestions || []);
         setRecommendedActions(res.data.data.recommendedActions || []);
@@ -284,14 +332,14 @@ export default function InteractionPage() {
         <div className="w-9 h-9 bg-[#81d8d0]/20 rounded-xl flex items-center justify-center mb-8">
           <Shield size={18} className="text-[#81d8d0]" />
         </div>
-        
+
         <nav className="flex flex-col items-center gap-4 flex-1">
           <NavIcon icon={<Home size={18} />} href="/" />
           <NavIcon icon={<MessageSquare size={18} />} active />
           <NavIcon icon={<Users size={18} />} />
           <NavIcon icon={<Phone size={18} />} />
         </nav>
-        
+
         <div className="flex flex-col items-center gap-4">
           <NavIcon icon={<Settings size={18} />} />
         </div>
@@ -324,7 +372,7 @@ export default function InteractionPage() {
             {/* Customer Header */}
             <div className="h-16 bg-white border-b border-slate-100 px-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <button 
+                <button
                   onClick={handleEndCall}
                   className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
                 >
@@ -343,7 +391,7 @@ export default function InteractionPage() {
                   <span className="text-slate-400 text-xs">{customer.metadata?.company || 'Unknown Company'}</span>
                 </div>
               </div>
-              
+
               {/* Call Controls */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -354,7 +402,7 @@ export default function InteractionPage() {
                 <button className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
                   <Mic size={18} />
                 </button>
-                <button 
+                <button
                   onClick={handleEndCall}
                   className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-200"
                 >
@@ -371,67 +419,30 @@ export default function InteractionPage() {
               </div>
             )}
 
-            {/* Messages Area */}
-            <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
-              {transcription.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare size={28} className="text-slate-300" />
-                    </div>
-                    <p className="text-slate-500">Waiting for conversation...</p>
-                    <p className="text-slate-400 text-sm mt-1">Messages will appear here in real-time</p>
-                  </div>
+            {/* Full Screen Visualizer Container */}
+            <div className="flex-1 relative bg-slate-50 overflow-hidden">
+              {/* 3D Visualizer Layer (Background) */}
+              <div className="absolute inset-0 z-0">
+                <VisualizerScene analyser={analyser} isPlaying={isMicActive} isCustomerSpeaking={isCustomerSpeaking} />
+              </div>
+
+              {/* Floating Transcription Overlay */}
+              <TranscriptionOverlay transcription={transcription} isPlaying={isMicActive} />
+
+              {/* Top Left Status */}
+              <div className="absolute top-6 left-6 z-20">
+                <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm flex items-center gap-3">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isMicActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></div>
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {isMicActive ? 'Live Audio Sync' : 'Microphone Inactive'}
+                  </span>
                 </div>
-              ) : (
-                transcription.map((entry, index) => (
-                  <div key={index} className={`flex ${entry.speaker === 'customer' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%]`}>
-                      <div className={`rounded-2xl px-4 py-3 ${
-                        entry.speaker === 'customer' 
-                          ? 'bg-slate-200 text-slate-900' 
-                          : 'bg-[#0a1128] text-white'
-                      }`}>
-                        <p className="text-sm leading-relaxed">{entry.text}</p>
-                      </div>
-                      <span className="text-slate-400 text-[10px] mt-1 block px-2">
-                        {formatTime(new Date(entry.timestamp))}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Sentiment Bar */}
-            <div className="px-6 py-3 bg-white border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500 text-xs font-medium">Sentiment</span>
-                <span className={`text-xs font-semibold ${
-                  currentSentiment === 'negative' ? 'text-rose-500' : 
-                  currentSentiment === 'positive' ? 'text-emerald-500' : 'text-amber-500'
-                }`}>{getSentimentLabel()}</span>
               </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${getSentimentColor()}`} 
-                     style={{ width: currentSentiment === 'negative' ? '80%' : currentSentiment === 'positive' ? '20%' : '50%' }} 
-                />
-              </div>
-            </div>
 
-            {/* Message Input */}
-            <div className="p-4 bg-white border-t border-slate-100">
-              <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  className="flex-1 bg-transparent text-slate-900 placeholder-slate-400 outline-none text-sm"
-                />
-                <button className="w-9 h-9 rounded-lg bg-[#81d8d0] flex items-center justify-center text-[#0a1128] hover:bg-[#6bc4bc] transition-colors">
-                  <Send size={16} />
-                </button>
+              {/* Bottom Controls Bar - REMOVED as per request */}
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-30 pointer-events-none flex justify-center">
+                {/* Only End Call button remains if needed, likely completely hidden based on 'only show customer chats' */}
+                {/* keeping hidden for now or removing entirely. User said 'remove type message option'. */}
               </div>
             </div>
           </div>
@@ -451,7 +462,7 @@ export default function InteractionPage() {
                   <span>{customer.phoneNumber}</span>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                   <p className="text-slate-400 text-[10px] uppercase tracking-wider font-medium">Lifetime Value</p>
@@ -473,7 +484,7 @@ export default function InteractionPage() {
                 </div>
                 <span className="text-emerald-500 text-[10px] font-semibold">Active</span>
               </div>
-              
+
               <div className="space-y-3">
                 {suggestions.length > 0 ? suggestions.map((suggestion, index) => (
                   <div key={index} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
@@ -481,7 +492,7 @@ export default function InteractionPage() {
                       <span className="text-amber-600 text-[10px] font-semibold">💬 Suggested Response</span>
                     </div>
                     <p className="text-slate-700 text-sm leading-relaxed mb-3">"{suggestion.text}"</p>
-                    <button 
+                    <button
                       onClick={() => handleUseSuggestion(suggestion.text)}
                       className="w-full py-2 bg-[#81d8d0]/20 text-[#0a1128] rounded-lg text-sm font-semibold hover:bg-[#81d8d0]/30 transition-colors border border-[#81d8d0]/30"
                     >
@@ -499,7 +510,7 @@ export default function InteractionPage() {
                     </button>
                   </div>
                 )}
-                
+
                 {currentSentiment === 'negative' && (
                   <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
                     <div className="flex items-center gap-2 mb-2">
@@ -536,15 +547,14 @@ export default function InteractionPage() {
 // Nav Icon Component
 function NavIcon({ icon, active = false, href }: { icon: React.ReactNode; active?: boolean; href?: string }) {
   const router = useRouter();
-  
+
   return (
-    <button 
+    <button
       onClick={() => href && router.push(href)}
-      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-        active 
-          ? 'bg-[#81d8d0]/20 text-[#81d8d0]' 
-          : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-      }`}
+      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${active
+        ? 'bg-[#81d8d0]/20 text-[#81d8d0]'
+        : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+        }`}
     >
       {icon}
     </button>
