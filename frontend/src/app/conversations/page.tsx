@@ -253,7 +253,17 @@ export default function ConversationsPage() {
         onDecline={() => setIncomingCall(null)}
         onSendToAI={async () => {
           if (!incomingCall) return;
-          await axios.post(`${API_URL}/api/twilio/forward-to-ai`, { callId: incomingCall.callId, callSid: incomingCall.callSid, customer: incomingCall.customer });
+          // Store call data with AI handling flag
+          sessionStorage.setItem('activeCall', JSON.stringify({
+            ...incomingCall,
+            aiHandling: true
+          }));
+          await axios.post(`${API_URL}/api/twilio/ai-voice/start`, { 
+            callSid: incomingCall.callSid, 
+            customer: incomingCall.customer,
+            conversationId: incomingCall.callId 
+          });
+          router.push(`/interaction/${incomingCall.callId}`);
           setIncomingCall(null);
         }}
       />

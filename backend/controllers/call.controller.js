@@ -2,6 +2,7 @@ const twilioService = require('../services/twilio.service');
 const customerService = require('../services/customer.service');
 const conversationService = require('../services/conversation.service');
 const groqService = require('../services/groq.service');
+const elevenlabsService = require('../services/elevenlabs.service');
 const Conversation = require('../models/Conversation');
 
 class CallController {
@@ -11,11 +12,14 @@ class CallController {
       const from = req.body.From;
       const callSid = req.body.CallSid;
       const to = req.body.To;
+      const host = req.headers.host;
       
       console.log(`📞 Incoming call from ${from}, SID: ${callSid}`);
       
       // Find or create customer
       let customer = await customerService.findByPhone(from);
+      const isNewCustomer = !customer;
+      
       if (!customer) {
         customer = await customerService.createCustomer({
           phoneNumber: from,
@@ -37,18 +41,24 @@ class CallController {
       
       console.log(`💬 Conversation created: ${conversation._id}`);
       
+      // Store conference name for later use
+      const conferenceName = `call-${conversation._id}`;
+      
       // Emit to dashboard via Socket.IO
       const io = req.app.get('io');
       if (io) {
         io.emit('call:incoming', {
           callId: conversation._id,
           callSid: callSid,
-          conferenceName: `call-${conversation._id}`,
+          conferenceName: conferenceName,
+          isNewCustomer: isNewCustomer,
+          aiScreening: isNewCustomer && elevenlabsService.isConfigured(),
           customer: {
             _id: customer._id,
             name: customer.name || 'New Customer',
             phoneNumber: customer.phoneNumber,
             status: customer.status,
+            email: customer.email,
             metadata: customer.metadata,
             alerts: customer.alerts,
             insights: customer.insights
@@ -56,9 +66,28 @@ class CallController {
         });
       }
       
-      // Return TwiML response with unique conference name
-      const host = req.headers.host;
-      const twiml = twilioService.handleIncomingCall(req, host, conversation._id);
+      let twiml;
+      
+      // Route based on customer status
+      if (isNewCustomer && elevenlabsService.isConfigured()) {
+        // NEW CUSTOMER: Route to AI for screening first
+        console.log('🤖 Routing new customer to AI screening');
+        const callbackUrl = `https://${host}/api/twilio/ai-screening-complete?conversationId=${conversation._id}&conference=${conferenceName}`;
+        twiml = elevenlabsService.generateNewCustomerScreeningTwiml(customer, callbackUrl);
+        
+        // Notify dashboard that AI is screening
+        if (io) {
+          io.emit('call:ai-screening', {
+            callId: conversation._id,
+            status: 'screening',
+            message: 'AI is collecting customer information'
+          });
+        }
+      } else {
+        // EXISTING CUSTOMER: Route directly to agent queue
+        console.log('👤 Routing existing customer to agent');
+        twiml = twilioService.handleIncomingCall(req, host, conversation._id);
+      }
       
       res.type('text/xml');
       res.send(twiml);

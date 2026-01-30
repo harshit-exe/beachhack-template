@@ -26,7 +26,9 @@ import {
   Gift,
   ArrowLeft,
   Search,
-  Users
+  Users,
+  Bot,
+  UserCheck
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -58,6 +60,9 @@ export default function InteractionPage() {
   const [dialStatus, setDialStatus] = useState<string>('');
   const [messageInput, setMessageInput] = useState('');
   const [isMockCall, setIsMockCall] = useState(false);
+  const [aiHandlingCall, setAiHandlingCall] = useState(false);
+  const [callSid, setCallSid] = useState<string>('');
+  const [conferenceName, setConferenceName] = useState<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Mock conversation data for testing
@@ -80,11 +85,19 @@ export default function InteractionPage() {
     const mockCallFlag = sessionStorage.getItem('isMockCall');
     
     if (storedCall) {
-      const callData: IncomingCall = JSON.parse(storedCall);
+      const callData: IncomingCall & { aiHandling?: boolean } = JSON.parse(storedCall);
       setCustomer(callData.customer);
       setCallStartTime(new Date());
+      setCallSid(callData.callSid);
+      setConferenceName(callData.conferenceName || `call-${callData.callId}`);
       
-      if (mockCallFlag === 'true') {
+      // Check if call was sent to AI from dashboard
+      if (callData.aiHandling) {
+        setAiHandlingCall(true);
+        setDialStatus('🤖 AI is handling this call - Monitoring mode');
+        setIsDialing(true);
+        setTimeout(() => setIsDialing(false), 3000);
+      } else if (mockCallFlag === 'true') {
         // This is a mock call - simulate conversation
         setIsMockCall(true);
         sessionStorage.removeItem('isMockCall');
@@ -223,6 +236,68 @@ export default function InteractionPage() {
     setMessageInput(text);
   };
 
+  // Transfer call to AI
+  const handleTransferToAI = async () => {
+    if (isMockCall) {
+      // Mock transfer
+      setAiHandlingCall(true);
+      setDialStatus('🤖 AI is now handling this call (mock mode)');
+      setIsDialing(true);
+      setTimeout(() => setIsDialing(false), 2000);
+      return;
+    }
+
+    try {
+      setIsDialing(true);
+      setDialStatus('Transferring to AI (with your context)...');
+      
+      // Use hybrid AI voice endpoint (Groq logic + voice)
+      await axios.post(`${API_URL}/api/twilio/ai-voice/start`, {
+        callSid,
+        customer,
+        conversationId: callId
+      });
+      
+      setAiHandlingCall(true);
+      setDialStatus('🤖 AI is handling this call (with your customer data)');
+      setTimeout(() => setIsDialing(false), 2000);
+    } catch (error: any) {
+      console.error('Failed to transfer to AI:', error);
+      setDialStatus('Failed to transfer: ' + (error.response?.data?.error || error.message));
+      setTimeout(() => setIsDialing(false), 3000);
+    }
+  };
+
+  // Reclaim call from AI
+  const handleReclaimFromAI = async () => {
+    if (isMockCall) {
+      // Mock reclaim
+      setAiHandlingCall(false);
+      setDialStatus('👤 You are now handling this call (mock mode)');
+      setIsDialing(true);
+      setTimeout(() => setIsDialing(false), 2000);
+      return;
+    }
+
+    try {
+      setIsDialing(true);
+      setDialStatus('Taking call back from AI...');
+      
+      await axios.post(`${API_URL}/api/twilio/reclaim-from-ai`, {
+        callId,
+        callSid,
+        conferenceName
+      });
+      
+      setAiHandlingCall(false);
+      setDialStatus('👤 You are now handling this call');
+      setTimeout(() => setIsDialing(false), 2000);
+    } catch (error: any) {
+      console.error('Failed to reclaim from AI:', error);
+      setDialStatus('Failed to reclaim: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
   const handleRefreshSuggestions = async () => {
     if (transcription.length === 0) return;
     
@@ -345,12 +420,38 @@ export default function InteractionPage() {
               </div>
               
               {/* Call Controls */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {/* Status Indicator */}
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                  <span className="text-rose-500 text-sm font-medium">Live</span>
+                  <span className={`w-2 h-2 rounded-full animate-pulse ${aiHandlingCall ? 'bg-purple-500' : 'bg-rose-500'}`}></span>
+                  <span className={`text-sm font-medium ${aiHandlingCall ? 'text-purple-600' : 'text-rose-500'}`}>
+                    {aiHandlingCall ? 'AI Handling' : 'Live'}
+                  </span>
                 </div>
+                
                 <span className="text-slate-900 font-mono text-lg font-semibold">{callDuration}</span>
+                
+                {/* Transfer to AI / Reclaim Button */}
+                {aiHandlingCall ? (
+                  <button 
+                    onClick={handleReclaimFromAI}
+                    className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 flex items-center gap-2 text-sm font-semibold transition-colors"
+                    title="Take call back from AI"
+                  >
+                    <UserCheck size={16} />
+                    Reclaim
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleTransferToAI}
+                    className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center gap-2 text-sm font-semibold transition-colors"
+                    title="Transfer call to AI assistant"
+                  >
+                    <Bot size={16} />
+                    Transfer to AI
+                  </button>
+                )}
+                
                 <button className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
                   <Mic size={18} />
                 </button>
@@ -371,6 +472,33 @@ export default function InteractionPage() {
               </div>
             )}
 
+            {/* AI Monitoring Banner */}
+            {aiHandlingCall && (
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Bot size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">AI Assistant Active</span>
+                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                      </div>
+                      <p className="text-purple-200 text-xs">Monitoring conversation • AI has full customer context</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleReclaimFromAI}
+                    className="px-4 py-2 bg-white text-purple-700 rounded-lg font-semibold text-sm hover:bg-purple-100 transition-colors flex items-center gap-2"
+                  >
+                    <UserCheck size={16} />
+                    Take Over Call
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Messages Area */}
             <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
               {transcription.length === 0 ? (
@@ -384,22 +512,49 @@ export default function InteractionPage() {
                   </div>
                 </div>
               ) : (
-                transcription.map((entry, index) => (
-                  <div key={index} className={`flex ${entry.speaker === 'customer' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%]`}>
-                      <div className={`rounded-2xl px-4 py-3 ${
-                        entry.speaker === 'customer' 
-                          ? 'bg-slate-200 text-slate-900' 
-                          : 'bg-[#0a1128] text-white'
-                      }`}>
-                        <p className="text-sm leading-relaxed">{entry.text}</p>
+                transcription.map((entry, index) => {
+                  const isCustomer = entry.speaker === 'customer';
+                  const isAIMessage = aiHandlingCall && !isCustomer;
+                  
+                  return (
+                    <div key={index} className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[70%] flex gap-2 ${isCustomer ? 'flex-row-reverse' : ''}`}>
+                        {/* Avatar */}
+                        {!isCustomer && (
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            isAIMessage ? 'bg-purple-100' : 'bg-[#0a1128]'
+                          }`}>
+                            {isAIMessage ? (
+                              <Bot size={14} className="text-purple-600" />
+                            ) : (
+                              <span className="text-[#81d8d0] text-xs font-bold">JD</span>
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          {/* Speaker label for AI */}
+                          {isAIMessage && (
+                            <span className="text-purple-600 text-[10px] font-semibold uppercase tracking-wide mb-1 block">
+                              AI Assistant
+                            </span>
+                          )}
+                          <div className={`rounded-2xl px-4 py-3 ${
+                            isCustomer 
+                              ? 'bg-slate-200 text-slate-900' 
+                              : isAIMessage 
+                                ? 'bg-purple-100 text-purple-900 border border-purple-200' 
+                                : 'bg-[#0a1128] text-white'
+                          }`}>
+                            <p className="text-sm leading-relaxed">{entry.text}</p>
+                          </div>
+                          <span className="text-slate-400 text-[10px] mt-1 block px-2">
+                            {formatTime(new Date(entry.timestamp))}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-slate-400 text-[10px] mt-1 block px-2">
-                        {formatTime(new Date(entry.timestamp))}
-                      </span>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

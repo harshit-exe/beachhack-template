@@ -115,11 +115,20 @@ export default function CustomersPage() {
   const handleSendToAI = async () => {
     if (!incomingCall) return;
     try {
-      await axios.post(`${API_URL}/api/twilio/forward-to-ai`, {
-        callId: incomingCall.callId,
+      // Store call data with AI handling flag for monitoring
+      sessionStorage.setItem('activeCall', JSON.stringify({
+        ...incomingCall,
+        aiHandling: true
+      }));
+      
+      await axios.post(`${API_URL}/api/twilio/ai-voice/start`, {
         callSid: incomingCall.callSid,
-        customer: incomingCall.customer
+        customer: incomingCall.customer,
+        conversationId: incomingCall.callId
       });
+      
+      // Navigate to interaction page to monitor
+      router.push(`/interaction/${incomingCall.callId}`);
       setIncomingCall(null);
     } catch (error) {
       console.error('Failed to forward to AI:', error);

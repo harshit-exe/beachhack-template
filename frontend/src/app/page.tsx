@@ -125,13 +125,23 @@ export default function DashboardHome() {
     if (!incomingCall) return;
     
     try {
-      await axios.post(`${API_URL}/api/twilio/forward-to-ai`, {
-        callId: incomingCall.callId,
+      // Store call data with AI handling flag for monitoring
+      sessionStorage.setItem('activeCall', JSON.stringify({
+        ...incomingCall,
+        aiHandling: true
+      }));
+      
+      // Use hybrid AI voice (Groq logic + voice)
+      await axios.post(`${API_URL}/api/twilio/ai-voice/start`, {
         callSid: incomingCall.callSid,
-        customer: incomingCall.customer
+        customer: incomingCall.customer,
+        conversationId: incomingCall.callId
       });
       
-      console.log('📤 Call forwarded to AI agent');
+      console.log('📤 Call forwarded to AI (with customer context)');
+      
+      // Navigate to interaction page to monitor
+      router.push(`/interaction/${incomingCall.callId}`);
       setIncomingCall(null);
     } catch (error: any) {
       console.error('Failed to forward to AI:', error);
