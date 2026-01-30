@@ -6,6 +6,8 @@ const { Server } = require('socket.io');
 const { connectDatabase } = require('./config/database');
 const { setupDashboardSocket } = require('./websocket/dashboard.socket');
 const MediaStreamHandler = require('./websocket/media-stream.handler');
+const AIVoiceHandler = require('./websocket/ai-voice.handler');
+const ElevenLabsBridge = require('./websocket/elevenlabs-bridge.handler');
 
 // Import models to register them with Mongoose
 require('./models/Customer');
@@ -15,6 +17,7 @@ require('./models/Agent');
 // Import routes
 const twilioRoutes = require('./routes/twilio.routes');
 const apiRoutes = require('./routes/api.routes');
+const elevenlabsRoutes = require('./routes/elevenlabs.routes');
 
 // Initialize Express app
 const app = express();
@@ -42,6 +45,7 @@ app.set('io', io);
 
 // API Routes
 app.use('/api/twilio', twilioRoutes);
+app.use('/api/elevenlabs', elevenlabsRoutes);
 app.use('/api', apiRoutes);
 
 // Root endpoint
@@ -87,6 +91,9 @@ setupDashboardSocket(io);
 // Setup Media Stream handler for real-time transcription
 const mediaStreamHandler = new MediaStreamHandler(io);
 
+// Setup AI Voice handler for ElevenLabs-powered conversations
+const aiVoiceHandler = new AIVoiceHandler(io);
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
@@ -111,6 +118,13 @@ async function startServer() {
       
       // Setup media stream after server is listening
       mediaStreamHandler.setupMediaStream(server);
+      
+      // Setup ElevenLabs Conversational AI Bridge
+      const elevenLabsBridge = new ElevenLabsBridge(server);
+      console.log('🎤 ElevenLabs Conversational AI Bridge ready on /elevenlabs-stream');
+      
+      // Setup AI voice stream
+      aiVoiceHandler.setupAIVoiceStream(server);
     });
     
   } catch (error) {

@@ -257,46 +257,66 @@ router.post('/reclaim-from-ai', async (req, res) => {
 });
 
 // =============================================
-// AI VOICE CONVERSATION ROUTES (Groq Logic + Voice)
+// AI VOICE CONVERSATION ROUTES - ElevenLabs Conversational Agent
 // =============================================
 
 // Store conversation state per call (in production, use Redis)
 const aiConversations = new Map();
 
-// Start AI voice conversation (called from forward-to-ai when using our logic)
+// Start AI voice conversation using ElevenLabs Conversational Agent
 router.post('/ai-voice/start', async (req, res) => {
   try {
     const { callSid, customer, conversationId } = req.body;
     const host = lastKnownHost || req.headers.host;
-    const aiVoiceService = require('../services/aivoice.service');
     
-    if (!aiVoiceService.isConfigured()) {
-      // Fallback to hold
+    // Check if ElevenLabs Conversational Agent is configured
+    if (!elevenlabsService.isConfigured()) {
+      // Fallback to hold music
       const VoiceResponse = require('twilio').twiml.VoiceResponse;
       const twiml = new VoiceResponse();
-      twiml.say({ voice: 'Polly.Aditi' }, 'Please hold while we connect you.');
+      twiml.say({ voice: 'Polly.Aditi' }, 'Please hold while we connect you to an agent.');
       twiml.play({ loop: 5 }, 'http://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-B8.mp3');
       
       await twilioService.client.calls(callSid).update({ twiml: twiml.toString() });
-      return res.json({ success: true, message: 'Customer on hold (AI not configured)' });
+      return res.json({ success: true, message: 'Customer on hold (ElevenLabs not configured)' });
     }
     
-    // Initialize conversation state
+    // Store conversation state
     aiConversations.set(callSid, {
       customer,
       conversationId,
-      history: [],
       startTime: new Date()
     });
     
-    // Generate greeting TwiML
-    const gatherUrl = `https://${host}/api/twilio/ai-voice/gather?callSid=${callSid}`;
-    const twiml = aiVoiceService.generateAIGreetingTwiml(customer, gatherUrl, 'support');
+    // Check if call is still active before updating
+    try {
+      const call = await twilioService.client.calls(callSid).fetch();
+      if (call.status !== 'in-progress' && call.status !== 'ringing') {
+        console.log('⚠️ Call not active, status:', call.status);
+        return res.json({ success: false, error: 'Call has ended', status: call.status });
+      }
+    } catch (fetchError) {
+      console.log('⚠️ Could not fetch call status:', fetchError.message);
+      return res.json({ success: false, error: 'Call not found or ended' });
+    }
     
-    // Update call with AI greeting
+    // Generate TwiML to stream call to ElevenLabs Conversational Agent
+    // This connects to our ElevenLabs Bridge which handles audio conversion
+    
+    // IMPORTANT: Store customer context BEFORE forwarding so ElevenLabs webhook can retrieve it
+    const elevenlabsRoutes = require('./elevenlabs.routes');
+    if (elevenlabsRoutes.setActiveCallContext) {
+      elevenlabsRoutes.setActiveCallContext(customer?.phoneNumber, customer);
+    }
+    
+    const twiml = await elevenlabsService.generateStreamToAITwiml(customer, 'support', host);
+    
+    // Update call with ElevenLabs streaming TwiML
     await twilioService.client.calls(callSid).update({ twiml });
     
-    console.log('🤖 AI voice conversation started for:', callSid);
+    console.log('🤖 ElevenLabs Bridge connecting call:', callSid);
+    console.log('📱 Customer:', customer?.name || 'Unknown');
+    console.log('🔗 Bridge URL: wss://' + host + '/elevenlabs-stream');
     
     // Emit to dashboard
     const io = req.app.get('io');
@@ -305,14 +325,20 @@ router.post('/ai-voice/start', async (req, res) => {
         callId: conversationId,
         callSid,
         status: 'ai-voice-active',
-        message: 'AI (with your logic) is handling this call'
+        message: 'ElevenLabs AI Agent is handling this call'
       });
     }
     
-    res.json({ success: true, message: 'AI voice conversation started' });
+    res.json({ success: true, message: 'ElevenLabs AI Agent started' });
     
   } catch (error) {
     console.error('AI voice start error:', error);
+    
+    // Handle specific Twilio errors
+    if (error.code === 21220) {
+      return res.json({ success: false, error: 'Call has ended or is not active' });
+    }
+    
     res.status(500).json({ success: false, error: error.message });
   }
 });

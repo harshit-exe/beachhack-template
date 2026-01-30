@@ -36,6 +36,33 @@ class ElevenLabsService {
   }
 
   /**
+   * Get signed WebSocket URL for ElevenLabs (required for Twilio streams)
+   */
+  async getSignedUrl() {
+    if (!this.isConfigured()) {
+      throw new Error('ElevenLabs Agent not configured');
+    }
+
+    try {
+      const axios = require('axios');
+      const response = await axios.get(
+        `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${this.agentId}`,
+        {
+          headers: {
+            'xi-api-key': this.apiKey
+          }
+        }
+      );
+      
+      console.log('🔐 Got ElevenLabs signed URL');
+      return response.data.signed_url;
+    } catch (error) {
+      console.error('Failed to get signed URL:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Build rich context string for the AI agent
    * This gives the AI full knowledge about the customer
    */
@@ -96,55 +123,70 @@ class ElevenLabsService {
   }
 
   /**
-   * Generate TwiML to stream call audio to ElevenLabs AI
-   * Includes full customer context for personalized responses
+   * Generate TwiML to connect call to ElevenLabs Conversational AI
+   * 
+   * Two modes:
+   * 1. ELEVENLABS_PHONE_NUMBER set: Forward to ElevenLabs-connected number (recommended)
+   * 2. No phone number: Use WebSocket bridge (experimental)
    */
-  generateStreamToAITwiml(customerInfo = {}, context = 'general') {
+  async generateStreamToAITwiml(customerInfo = {}, context = 'general', host = '') {
     const VoiceResponse = require('twilio').twiml.VoiceResponse;
     const twiml = new VoiceResponse();
 
-    // Build context prompt for AI
-    const customerContext = this.buildCustomerContext(customerInfo);
     const isVIP = customerInfo.status === 'vip';
     const isReturning = (customerInfo.metadata?.totalCalls || 0) > 1;
 
-    // Personalized greeting based on context
+    // Personalized greeting before transfer
     let greeting;
     if (context === 'transfer') {
       greeting = isVIP 
-        ? `I'm transferring you to our AI assistant who has your complete history, ${customerInfo.name || 'valued customer'}.`
-        : 'I\'m transferring you to our AI assistant who can help you further.';
+        ? `I'm transferring you to our AI assistant, ${customerInfo.name || 'valued customer'}.`
+        : 'I\'m transferring you to our AI assistant.';
     } else {
       greeting = isReturning
-        ? `Hello ${customerInfo.name || 'there'}! Great to hear from you again. Connecting you to our AI assistant.`
-        : 'Welcome! Connecting you to our AI assistant. One moment please.';
+        ? `Hello ${customerInfo.name || 'there'}! Connecting you to our AI assistant.`
+        : 'Welcome! Connecting you to our AI assistant.';
     }
     
     twiml.say({ voice: 'Polly.Amy' }, greeting);
     
-    // Connect to ElevenLabs via WebSocket stream
-    const connect = twiml.connect();
-    const stream = connect.stream({
-      url: this.getWebSocketUrl(),
-      name: 'elevenlabs'
-    });
+    // Check if we have an ElevenLabs-connected phone number (RECOMMENDED)
+    const elevenLabsPhone = process.env.ELEVENLABS_PHONE_NUMBER;
     
-    // Pass rich customer context as parameters
-    // ElevenLabs can access these as dynamic variables
-    stream.parameter({ name: 'customer_name', value: customerInfo.name || 'Customer' });
-    stream.parameter({ name: 'customer_phone', value: customerInfo.phoneNumber || '' });
-    stream.parameter({ name: 'customer_status', value: customerInfo.status || 'new' });
-    stream.parameter({ name: 'customer_company', value: customerInfo.metadata?.company || '' });
-    stream.parameter({ name: 'customer_ltv', value: String(customerInfo.metadata?.lifetimeValue || 0) });
-    stream.parameter({ name: 'customer_rating', value: String(customerInfo.metadata?.averageRating || 0) });
-    stream.parameter({ name: 'customer_calls', value: String(customerInfo.metadata?.totalCalls || 0) });
-    stream.parameter({ name: 'customer_notes', value: customerInfo.metadata?.notes || '' });
-    stream.parameter({ name: 'context', value: context });
-    stream.parameter({ name: 'is_vip', value: isVIP ? 'true' : 'false' });
-    stream.parameter({ name: 'is_returning', value: isReturning ? 'true' : 'false' });
-    
-    // Full context as JSON for AI's reference
-    stream.parameter({ name: 'full_context', value: customerContext });
+    if (elevenLabsPhone) {
+      // Forward to ElevenLabs-connected Twilio number
+      // IMPORTANT: Pass original caller ID so ElevenLabs can look up customer
+      console.log('📞 Forwarding to ElevenLabs number:', elevenLabsPhone);
+      console.log('📱 Original caller:', customerInfo.phoneNumber);
+      
+      const dial = twiml.dial({
+        // Use ORIGINAL caller ID so ElevenLabs sees who's really calling
+        callerId: customerInfo.phoneNumber || process.env.TWILIO_PHONE_NUMBER,
+        timeout: 30,
+        answerOnBridge: true
+      });
+      dial.number(elevenLabsPhone);
+      
+    } else {
+      // Fallback: Use WebSocket bridge (experimental)
+      console.log('🔗 Using WebSocket bridge (set ELEVENLABS_PHONE_NUMBER for better reliability)');
+      
+      const ngrokHost = host || process.env.NGROK_URL?.replace('https://', '') || 'localhost:5001';
+      const bridgeUrl = `wss://${ngrokHost}/elevenlabs-stream`;
+      
+      const connect = twiml.connect();
+      const stream = connect.stream({
+        url: bridgeUrl,
+        name: 'elevenlabs-bridge'
+      });
+      
+      // Pass customer context as stream parameters
+      stream.parameter({ name: 'customer_name', value: customerInfo.name || 'Customer' });
+      stream.parameter({ name: 'customer_phone', value: customerInfo.phoneNumber || '' });
+      stream.parameter({ name: 'customer_status', value: customerInfo.status || 'new' });
+      stream.parameter({ name: 'is_vip', value: isVIP ? 'true' : 'false' });
+      stream.parameter({ name: 'context', value: context });
+    }
 
     return twiml.toString();
   }
