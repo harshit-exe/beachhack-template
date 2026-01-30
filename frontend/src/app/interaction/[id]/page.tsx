@@ -1,0 +1,498 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useSocket } from '@/hooks/useSocket';
+import { 
+  Customer, 
+  TranscriptionEntry, 
+  AISuggestion,
+  IncomingCall
+} from '@/types';
+import { customersApi, aiApi } from '@/lib/api';
+import { 
+  Home, 
+  MessageSquare, 
+  Settings, 
+  Shield, 
+  Phone, 
+  PhoneOff,
+  Mail,
+  Mic,
+  Send,
+  CheckCircle,
+  Clock,
+  Sparkles,
+  Gift,
+  ArrowLeft,
+  Search,
+  Users
+} from 'lucide-react';
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const AGENT_ID = 'demo-agent-001';
+
+export default function InteractionPage() {
+  const params = useParams();
+  const router = useRouter();
+  const callId = params.id as string;
+  
+  const { 
+    isConnected,
+    onTranscriptionUpdate,
+    onAISuggestion,
+    onCallEnded
+  } = useSocket();
+  
+  // State
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [transcription, setTranscription] = useState<TranscriptionEntry[]>([]);
+  const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
+  const [recommendedActions, setRecommendedActions] = useState<string[]>([]);
+  const [currentSentiment, setCurrentSentiment] = useState<'positive' | 'neutral' | 'negative'>('neutral');
+  const [callStartTime, setCallStartTime] = useState<Date>(new Date());
+  const [callDuration, setCallDuration] = useState('00:00');
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [isDialing, setIsDialing] = useState(false);
+  const [dialStatus, setDialStatus] = useState<string>('');
+  const [messageInput, setMessageInput] = useState('');
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  // Load call data from sessionStorage on mount
+  useEffect(() => {
+    const storedCall = sessionStorage.getItem('activeCall');
+    if (storedCall) {
+      const callData: IncomingCall = JSON.parse(storedCall);
+      setCustomer(callData.customer);
+      setCallStartTime(new Date());
+      
+      // Dial agent's phone to join conference
+      dialAgentPhone(callData);
+    } else {
+      // No active call data, redirect to home
+      router.push('/');
+    }
+  }, [router]);
+
+  // Dial agent phone
+  const dialAgentPhone = async (callData: IncomingCall) => {
+    setIsDialing(true);
+    setDialStatus('Calling your phone...');
+    
+    try {
+      const conferenceName = callData.conferenceName || `call-${callData.callId}`;
+      await axios.post(`${API_URL}/api/twilio/join-call`, {
+        callId: callData.callId,
+        conferenceName
+      });
+      setDialStatus('Ringing your phone - answer to join!');
+      setTimeout(() => setIsDialing(false), 3000);
+    } catch (error: any) {
+      console.error('Failed to dial agent:', error);
+      setDialStatus('Failed: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  // Call duration timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - callStartTime.getTime()) / 1000);
+      const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+      const seconds = (diff % 60).toString().padStart(2, '0');
+      setCallDuration(`${minutes}:${seconds}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [callStartTime]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [transcription]);
+
+  // Subscribe to socket events
+  useEffect(() => {
+    const unsubTranscription = onTranscriptionUpdate?.((data: any) => {
+      console.log('📝 Transcription update:', data);
+      setTranscription(prev => [...prev, {
+        speaker: data.speaker,
+        text: data.text,
+        timestamp: new Date(data.timestamp),
+        confidence: 1.0
+      }]);
+      
+      if (data.sentiment) {
+        setCurrentSentiment(data.sentiment.sentiment);
+      }
+    });
+
+    const unsubSuggestions = onAISuggestion?.((data: any) => {
+      console.log('🤖 AI suggestion:', data);
+      setIsSuggestionsLoading(false);
+      if (data.suggestions) {
+        setSuggestions(data.suggestions);
+      }
+      if (data.recommendedActions) {
+        setRecommendedActions(data.recommendedActions);
+      }
+    });
+
+    const unsubEnded = onCallEnded?.((data: any) => {
+      console.log('📞 Call ended:', data);
+      handleEndCall();
+    });
+
+    return () => {
+      unsubTranscription?.();
+      unsubSuggestions?.();
+      unsubEnded?.();
+    };
+  }, [onTranscriptionUpdate, onAISuggestion, onCallEnded]);
+
+  // Fetch customer history
+  useEffect(() => {
+    if (customer?._id) {
+      customersApi.getHistory(customer._id).catch(console.error);
+    }
+  }, [customer?._id]);
+
+  const handleEndCall = useCallback(() => {
+    sessionStorage.removeItem('activeCall');
+    router.push('/');
+  }, [router]);
+
+  const handleUseSuggestion = (text: string) => {
+    setMessageInput(text);
+  };
+
+  const handleRefreshSuggestions = async () => {
+    if (transcription.length === 0) return;
+    
+    setIsSuggestionsLoading(true);
+    
+    try {
+      const res = await aiApi.getSuggestions({
+        conversationId: callId,
+        lastMessage: transcription[transcription.length - 1]?.text,
+        history: transcription.map(t => ({ speaker: t.speaker, text: t.text }))
+      });
+      
+      if (res.data.success && res.data.data) {
+        setSuggestions(res.data.data.suggestions || []);
+        setRecommendedActions(res.data.data.recommendedActions || []);
+      }
+    } catch (error) {
+      console.error('Failed to refresh suggestions:', error);
+    } finally {
+      setIsSuggestionsLoading(false);
+    }
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const getSentimentColor = () => {
+    switch (currentSentiment) {
+      case 'positive': return 'bg-emerald-500';
+      case 'negative': return 'bg-rose-500';
+      default: return 'bg-amber-500';
+    }
+  };
+
+  const getSentimentLabel = () => {
+    switch (currentSentiment) {
+      case 'positive': return 'Happy';
+      case 'negative': return 'Frustrated';
+      default: return 'Neutral';
+    }
+  };
+
+  if (!customer) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#81d8d0] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500">Loading interaction...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex bg-slate-50 overflow-hidden">
+      {/* Left Sidebar */}
+      <aside className="w-14 bg-[#0a1128] flex flex-col items-center py-4">
+        <div className="w-9 h-9 bg-[#81d8d0]/20 rounded-xl flex items-center justify-center mb-8">
+          <Shield size={18} className="text-[#81d8d0]" />
+        </div>
+        
+        <nav className="flex flex-col items-center gap-4 flex-1">
+          <NavIcon icon={<Home size={18} />} href="/" />
+          <NavIcon icon={<MessageSquare size={18} />} active />
+          <NavIcon icon={<Users size={18} />} />
+          <NavIcon icon={<Phone size={18} />} />
+        </nav>
+        
+        <div className="flex flex-col items-center gap-4">
+          <NavIcon icon={<Settings size={18} />} />
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col bg-white">
+        {/* Header */}
+        <header className="h-14 bg-white border-b border-slate-100 flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-900 font-semibold">Dashboard</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-500">Interaction</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+              <Search size={14} className="text-slate-400" />
+              <span className="text-slate-400 text-sm">Search</span>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-[#0a1128] flex items-center justify-center text-[#81d8d0] text-xs font-bold">
+              JD
+            </div>
+          </div>
+        </header>
+
+        {/* Chat Interface */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col bg-slate-50">
+            {/* Customer Header */}
+            <div className="h-16 bg-white border-b border-slate-100 px-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={handleEndCall}
+                  className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
+                  {customer.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '??'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-900 font-semibold">{customer.name || 'Customer'}</span>
+                    {customer.status === 'vip' && (
+                      <span className="px-2 py-0.5 bg-[#81d8d0] text-[#0a1128] text-[10px] font-bold uppercase rounded">Premium</span>
+                    )}
+                  </div>
+                  <span className="text-slate-400 text-xs">{customer.metadata?.company || 'Unknown Company'}</span>
+                </div>
+              </div>
+              
+              {/* Call Controls */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                  <span className="text-rose-500 text-sm font-medium">Live</span>
+                </div>
+                <span className="text-slate-900 font-mono text-lg font-semibold">{callDuration}</span>
+                <button className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                  <Mic size={18} />
+                </button>
+                <button 
+                  onClick={handleEndCall}
+                  className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-200"
+                >
+                  <PhoneOff size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Dial Status */}
+            {isDialing && (
+              <div className="bg-[#0a1128] text-white px-6 py-2 text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#81d8d0] animate-pulse"></span>
+                {dialStatus}
+              </div>
+            )}
+
+            {/* Messages Area */}
+            <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+              {transcription.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare size={28} className="text-slate-300" />
+                    </div>
+                    <p className="text-slate-500">Waiting for conversation...</p>
+                    <p className="text-slate-400 text-sm mt-1">Messages will appear here in real-time</p>
+                  </div>
+                </div>
+              ) : (
+                transcription.map((entry, index) => (
+                  <div key={index} className={`flex ${entry.speaker === 'customer' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%]`}>
+                      <div className={`rounded-2xl px-4 py-3 ${
+                        entry.speaker === 'customer' 
+                          ? 'bg-slate-200 text-slate-900' 
+                          : 'bg-[#0a1128] text-white'
+                      }`}>
+                        <p className="text-sm leading-relaxed">{entry.text}</p>
+                      </div>
+                      <span className="text-slate-400 text-[10px] mt-1 block px-2">
+                        {formatTime(new Date(entry.timestamp))}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Sentiment Bar */}
+            <div className="px-6 py-3 bg-white border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-slate-500 text-xs font-medium">Sentiment</span>
+                <span className={`text-xs font-semibold ${
+                  currentSentiment === 'negative' ? 'text-rose-500' : 
+                  currentSentiment === 'positive' ? 'text-emerald-500' : 'text-amber-500'
+                }`}>{getSentimentLabel()}</span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${getSentimentColor()}`} 
+                     style={{ width: currentSentiment === 'negative' ? '80%' : currentSentiment === 'positive' ? '20%' : '50%' }} 
+                />
+              </div>
+            </div>
+
+            {/* Message Input */}
+            <div className="p-4 bg-white border-t border-slate-100">
+              <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  className="flex-1 bg-transparent text-slate-900 placeholder-slate-400 outline-none text-sm"
+                />
+                <button className="w-9 h-9 rounded-lg bg-[#81d8d0] flex items-center justify-center text-[#0a1128] hover:bg-[#6bc4bc] transition-colors">
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar */}
+          <aside className="w-72 bg-white border-l border-slate-100 flex flex-col overflow-hidden">
+            {/* Customer Info */}
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-3">Customer Info</h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-600 text-sm">
+                  <Mail size={14} className="text-slate-400" />
+                  <span>{customer.email || 'No email'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600 text-sm">
+                  <Phone size={14} className="text-slate-400" />
+                  <span>{customer.phoneNumber}</span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-slate-400 text-[10px] uppercase tracking-wider font-medium">Lifetime Value</p>
+                  <p className="text-slate-900 font-bold text-lg">₹{(customer.metadata?.lifetimeValue || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-slate-400 text-[10px] uppercase tracking-wider font-medium">Satisfaction</p>
+                  <p className="text-emerald-500 font-bold text-lg">{customer.metadata?.averageRating?.toFixed(1) || '0.0'}/5</p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Suggestions */}
+            <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-amber-500" />
+                  <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">AI Suggestions</h3>
+                </div>
+                <span className="text-emerald-500 text-[10px] font-semibold">Active</span>
+              </div>
+              
+              <div className="space-y-3">
+                {suggestions.length > 0 ? suggestions.map((suggestion, index) => (
+                  <div key={index} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-amber-600 text-[10px] font-semibold">💬 Suggested Response</span>
+                    </div>
+                    <p className="text-slate-700 text-sm leading-relaxed mb-3">"{suggestion.text}"</p>
+                    <button 
+                      onClick={() => handleUseSuggestion(suggestion.text)}
+                      className="w-full py-2 bg-[#81d8d0]/20 text-[#0a1128] rounded-lg text-sm font-semibold hover:bg-[#81d8d0]/30 transition-colors border border-[#81d8d0]/30"
+                    >
+                      Use Response
+                    </button>
+                  </div>
+                )) : (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-amber-600 text-[10px] font-semibold">💬 Suggested Response</span>
+                    </div>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-3">Listening for conversation...</p>
+                    <button className="w-full py-2 bg-slate-100 text-slate-400 rounded-lg text-sm font-medium cursor-not-allowed">
+                      Use Response
+                    </button>
+                  </div>
+                )}
+                
+                {currentSentiment === 'negative' && (
+                  <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Gift size={12} className="text-emerald-600" />
+                      <span className="text-emerald-700 text-[10px] font-semibold">Retention Offer</span>
+                    </div>
+                    <p className="text-slate-700 text-sm">Offer ₹500 credit as compensation.</p>
+                    <button className="w-full py-2 mt-3 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors border border-slate-200">
+                      Apply Credit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-4 border-t border-slate-100 space-y-2">
+              <button className="w-full py-3 bg-emerald-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20">
+                <CheckCircle size={16} />
+                Resolve Issue
+              </button>
+              <button className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors">
+                <Clock size={14} />
+                Create Follow-up
+              </button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Nav Icon Component
+function NavIcon({ icon, active = false, href }: { icon: React.ReactNode; active?: boolean; href?: string }) {
+  const router = useRouter();
+  
+  return (
+    <button 
+      onClick={() => href && router.push(href)}
+      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+        active 
+          ? 'bg-[#81d8d0]/20 text-[#81d8d0]' 
+          : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+      }`}
+    >
+      {icon}
+    </button>
+  );
+}
