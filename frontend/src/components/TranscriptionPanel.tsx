@@ -25,11 +25,11 @@ function formatTime(date: Date | string): string {
 function getSentimentStyle(sentiment: string | undefined) {
   switch (sentiment) {
     case 'positive':
-      return { color: '#16a34a', bg: '#dcfce7', label: '😊 Happy' };
+      return { color: '#059669', bg: 'bg-emerald-50', border: 'border-emerald-200', label: '😊 Happy' };
     case 'negative':
-      return { color: '#dc2626', bg: '#fee2e2', label: '😟 Frustrated' };
+      return { color: '#dc2626', bg: 'bg-rose-50', border: 'border-rose-200', label: '😟 Frustrated' };
     default:
-      return { color: '#6b7280', bg: '#f3f4f6', label: '😐 Neutral' };
+      return { color: '#6b7280', bg: 'bg-slate-50', border: 'border-slate-200', label: '😐 Neutral' };
   }
 }
 
@@ -51,83 +51,86 @@ export default function TranscriptionPanel({
   }, [transcription]);
 
   return (
-    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col overflow-hidden">
+    <div className="flex-1 bg-white rounded-xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-[#0a1128]">
         <div className="flex items-center gap-3">
           {isRecording ? (
             <>
-              <span className="relative flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
-              </span>
-              <Mic className="w-6 h-6 text-red-500" />
-              <span className="font-bold text-lg text-gray-900">Live Transcription</span>
+              <div className="flex items-center gap-1">
+                {[...Array(5)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="w-1 bg-[#81d8d0] rounded-full wave-bar"
+                    style={{ height: '8px' }}
+                  />
+                ))}
+              </div>
+              <span className="font-bold text-sm text-white uppercase tracking-wider">Live Transcription</span>
             </>
           ) : (
             <>
-              <MicOff className="w-6 h-6 text-gray-400" />
-              <span className="font-bold text-lg text-gray-500">Not Recording</span>
+              <MicOff className="w-5 h-5 text-slate-400" />
+              <span className="font-semibold text-sm text-slate-400">Not Recording</span>
             </>
           )}
         </div>
         
         {/* Sentiment Indicator */}
         <div 
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
-          style={{ backgroundColor: sentimentStyle.bg, color: sentimentStyle.color }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${sentimentStyle.bg} ${sentimentStyle.border} border`}
+          style={{ color: sentimentStyle.color }}
         >
           {sentimentStyle.label}
         </div>
       </div>
 
-      {/* Transcription Content - LARGER TEXT */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5">
+      {/* Transcription Content */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-hide">
         {transcription.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-              <Headphones className="w-8 h-8 text-gray-300" />
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
+            <div className="w-16 h-16 rounded-xl bg-slate-50 flex items-center justify-center">
+              <Headphones className="w-8 h-8 text-slate-300" />
             </div>
-            <p className="text-lg">Waiting for conversation to start...</p>
-            <p className="text-sm text-gray-300">Transcription will appear here in real-time</p>
+            <p className="text-base font-medium">Waiting for conversation...</p>
+            <p className="text-sm text-slate-300">Transcription will appear here in real-time</p>
           </div>
         ) : (
           transcription.map((entry, index) => (
             <div
               key={index}
-              className={`rounded-xl p-4 transition-all duration-300 animate-fadeIn ${
+              className={`rounded-xl p-4 transition-all duration-300 animate-slide-in ${
                 entry.speaker === 'customer' 
-                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 ml-0 mr-4' 
+                  ? 'bg-slate-50 border-l-4 border-[#0a1128] ml-0 mr-6' 
                   : entry.speaker === 'agent'
-                  ? 'bg-gradient-to-r from-green-50 to-green-100 border-l-4 border-green-500 ml-4 mr-0'
-                  : 'bg-gray-50 border-l-4 border-gray-300'
+                  ? 'bg-[#81d8d0]/10 border-l-4 border-[#81d8d0] ml-6 mr-0'
+                  : 'bg-slate-50 border-l-4 border-slate-300'
               }`}
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                   entry.speaker === 'customer' 
-                    ? 'bg-blue-500' 
+                    ? 'bg-[#0a1128]' 
                     : entry.speaker === 'agent'
-                    ? 'bg-green-500'
-                    : 'bg-gray-400'
+                    ? 'bg-[#81d8d0]'
+                    : 'bg-slate-400'
                 }`}>
-                  <User className="w-4 h-4 text-white" />
+                  <User className={`w-4 h-4 ${entry.speaker === 'agent' ? 'text-[#0a1128]' : 'text-white'}`} />
                 </div>
-                <span className={`text-sm font-bold uppercase tracking-wide ${
+                <span className={`text-xs font-bold uppercase tracking-wider ${
                   entry.speaker === 'customer' 
-                    ? 'text-blue-700' 
+                    ? 'text-[#0a1128]' 
                     : entry.speaker === 'agent'
-                    ? 'text-green-700'
-                    : 'text-gray-600'
+                    ? 'text-[#0a1128]'
+                    : 'text-slate-600'
                 }`}>
                   {entry.speaker === 'customer' ? 'Customer' : entry.speaker === 'agent' ? 'You' : 'System'}
                 </span>
-                <span className="text-xs text-gray-400 ml-auto">
+                <span className="text-[10px] text-slate-400 ml-auto font-medium">
                   {formatTime(entry.timestamp)}
                 </span>
               </div>
-              {/* LARGER TEXT for easy reading */}
-              <p className="text-xl leading-relaxed text-gray-800 font-medium pl-11">
+              <p className="text-lg leading-relaxed text-[#0a1128] font-medium pl-10">
                 {entry.text}
               </p>
             </div>
@@ -136,13 +139,13 @@ export default function TranscriptionPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-        <span className="text-sm text-gray-500">
+      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
           {transcription.length} message{transcription.length !== 1 ? 's' : ''}
         </span>
         {isRecording && (
-          <span className="flex items-center gap-2 text-sm text-green-600 font-medium">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+          <span className="flex items-center gap-2 text-xs text-[#81d8d0] font-bold uppercase tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-[#81d8d0] animate-pulse"></span>
             Listening...
           </span>
         )}
