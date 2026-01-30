@@ -70,8 +70,44 @@ router.get('/current-caller', async (req, res) => {
       });
     }
 
+    // Fetch recent conversations for history context
+    let conversationHistory = [];
+    try {
+      const recentConvos = await Conversation.find({ customer: customer._id })
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .select('summary createdAt')
+        .lean();
+      
+      conversationHistory = recentConvos.map(c => c.summary?.auto || c.summary?.agent).filter(Boolean);
+    } catch (e) {
+      console.log('⚠️ Could not fetch conversation history');
+    }
+
     console.log(`📱 ElevenLabs: Current caller context - ${customer.name} (${latestContext.phone})`);
     
+    // Build comprehensive context for AI
+    const contextParts = [];
+    contextParts.push(`Customer: ${customer.name || 'Unknown'}`);
+    contextParts.push(`Status: ${customer.status || 'new'}`);
+    contextParts.push(`Total calls: ${customer.metadata?.totalCalls || 0}`);
+    
+    if (customer.metadata?.notes) {
+      contextParts.push(`Previous notes: ${customer.metadata.notes}`);
+    }
+    
+    if (customer.metadata?.scheduledMeeting) {
+      contextParts.push(`Scheduled meeting: ${customer.metadata.scheduledMeeting}`);
+    }
+    
+    if (conversationHistory.length > 0) {
+      contextParts.push(`Recent call summaries: ${conversationHistory.join(' | ')}`);
+    }
+    
+    if (customer.status === 'vip') {
+      contextParts.push(`VIP customer with lifetime value ₹${customer.metadata?.lifetimeValue || 0}`);
+    }
+
     res.json({
       success: true,
       is_new_customer: false,
@@ -82,12 +118,15 @@ router.get('/current-caller', async (req, res) => {
         status: customer.status || 'active',
         total_calls: customer.metadata?.totalCalls || 0,
         notes: customer.metadata?.notes || null,
-        last_contact: customer.metadata?.lastContactDate || null
+        scheduled_meeting: customer.metadata?.scheduledMeeting || null,
+        last_contact: customer.metadata?.lastContactDate || null,
+        lifetime_value: customer.metadata?.lifetimeValue || 0
       },
+      conversation_history: conversationHistory,
       greeting_suggestion: customer.name 
         ? `Hi ${customer.name}! Great to hear from you again. How can I help you today?`
         : "Hello! How can I assist you today?",
-      context: `This is ${customer.name || 'a returning customer'}. They have called ${customer.metadata?.totalCalls || 0} times. Previous notes: ${customer.metadata?.notes || 'None'}`
+      context: contextParts.join('. ')
     });
 
   } catch (error) {

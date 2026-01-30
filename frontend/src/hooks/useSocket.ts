@@ -139,6 +139,39 @@ export function useSocket() {
         }
     }, []);
 
+    // Subscribe to AI voice active with context
+    const onAIVoiceActive = useCallback((callback: (data: {
+        callId: string;
+        callSid: string;
+        status: string;
+        message: string;
+        customerContext?: {
+            name: string;
+            phone: string;
+            status: string;
+            notes: string | null;
+            totalCalls: number;
+            scheduledMeeting: string | null;
+            lifetimeValue: number;
+        };
+        recentConversations?: Array<{
+            summary: string;
+            date: string;
+            status: string;
+        }>;
+        aiSuggestions?: Array<{
+            type: string;
+            text: string;
+        }>;
+    }) => void) => {
+        if (socketRef.current) {
+            socketRef.current.on('call:ai-voice-active', callback);
+            return () => {
+                socketRef.current?.off('call:ai-voice-active', callback);
+            };
+        }
+    }, []);
+
     // Subscribe to call ended
     const onCallEnded = useCallback((callback: (data: CallEndedEvent) => void) => {
         if (socketRef.current) {
@@ -163,6 +196,7 @@ export function useSocket() {
         onCallAnswered,
         onTranscriptionUpdate,
         onAISuggestion,
+        onAIVoiceActive,
         onCallEnded
     };
 }

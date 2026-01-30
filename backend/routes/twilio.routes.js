@@ -9,6 +9,78 @@ const conversationService = require('../services/conversation.service');
 // Store the ngrok URL when webhook is called
 let lastKnownHost = null;
 
+/**
+ * Generate AI suggestions for the dashboard based on customer context
+ */
+function generateAISuggestions(customer, recentConversations) {
+  const suggestions = [];
+  
+  if (!customer) {
+    suggestions.push({
+      type: 'info',
+      text: 'New customer - collect name and purpose of call'
+    });
+    return suggestions;
+  }
+  
+  // VIP handling
+  if (customer.status === 'vip') {
+    suggestions.push({
+      type: 'priority',
+      text: `VIP Customer - Lifetime value: ₹${customer.metadata?.lifetimeValue || 0}`
+    });
+  }
+  
+  // Check for notes/previous context
+  if (customer.metadata?.notes) {
+    suggestions.push({
+      type: 'context',
+      text: `Previous notes: ${customer.metadata.notes}`
+    });
+  }
+  
+  // Check for scheduled meetings
+  if (customer.metadata?.scheduledMeeting) {
+    suggestions.push({
+      type: 'reminder',
+      text: `Scheduled: ${customer.metadata.scheduledMeeting}`
+    });
+  }
+  
+  // Check for alerts
+  if (customer.alerts && customer.alerts.length > 0) {
+    customer.alerts
+      .filter(a => !a.acknowledged)
+      .forEach(alert => {
+        suggestions.push({
+          type: 'alert',
+          text: `[${alert.type?.toUpperCase()}] ${alert.message}`
+        });
+      });
+  }
+  
+  // Recent conversation context
+  if (recentConversations && recentConversations.length > 0) {
+    const lastConvo = recentConversations[0];
+    if (lastConvo.summary?.auto || lastConvo.summary?.agent) {
+      suggestions.push({
+        type: 'history',
+        text: `Last call: ${lastConvo.summary?.auto || lastConvo.summary?.agent}`
+      });
+    }
+  }
+  
+  // Call count context
+  if (customer.metadata?.totalCalls > 5) {
+    suggestions.push({
+      type: 'info',
+      text: `Frequent caller (${customer.metadata.totalCalls} calls)`
+    });
+  }
+  
+  return suggestions;
+}
+
 // Twilio webhooks - these come from ngrok so we can capture the host
 router.post('/voice', (req, res, next) => {
   // Capture the ngrok host from incoming Twilio webhook
@@ -318,14 +390,52 @@ router.post('/ai-voice/start', async (req, res) => {
     console.log('📱 Customer:', customer?.name || 'Unknown');
     console.log('🔗 Bridge URL: wss://' + host + '/elevenlabs-stream');
     
-    // Emit to dashboard
+    // Emit to dashboard with FULL customer context
     const io = req.app.get('io');
     if (io) {
+      // Get recent conversations for this customer
+      let recentConversations = [];
+      try {
+        const Conversation = require('../models/Conversation');
+        recentConversations = await Conversation.find({ 
+          customer: customer?._id 
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('summary createdAt status')
+        .lean();
+      } catch (e) {
+        console.log('⚠️ Could not fetch conversations:', e.message);
+      }
+
       io.emit('call:ai-voice-active', {
         callId: conversationId,
         callSid,
         status: 'ai-voice-active',
-        message: 'ElevenLabs AI Agent is handling this call'
+        message: 'ElevenLabs AI Agent is handling this call',
+        // Include full customer context for dashboard
+        customerContext: {
+          name: customer?.name || 'Unknown',
+          phone: customer?.phoneNumber,
+          status: customer?.status || 'new',
+          email: customer?.email || null,
+          company: customer?.metadata?.company || null,
+          totalCalls: customer?.metadata?.totalCalls || 0,
+          notes: customer?.metadata?.notes || null,
+          lastContact: customer?.metadata?.lastContactDate || null,
+          lifetimeValue: customer?.metadata?.lifetimeValue || 0,
+          alerts: customer?.alerts || [],
+          tags: customer?.tags || [],
+          scheduledMeeting: customer?.metadata?.scheduledMeeting || null
+        },
+        // Include recent conversation summaries
+        recentConversations: recentConversations.map(c => ({
+          summary: c.summary?.auto || c.summary?.agent || 'No summary',
+          date: c.createdAt,
+          status: c.status
+        })),
+        // AI suggestions based on context
+        aiSuggestions: generateAISuggestions(customer, recentConversations)
       });
     }
     

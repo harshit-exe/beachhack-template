@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useSocket } from '@/hooks/useSocket';
 import { 
   Customer, 
@@ -32,6 +33,12 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
+// Dynamically import CallVisualizer to avoid SSR issues with Three.js
+const CallVisualizer = dynamic(
+  () => import('@/components/visualizer/CallVisualizer'),
+  { ssr: false }
+);
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const AGENT_ID = 'demo-agent-001';
 
@@ -44,7 +51,8 @@ export default function InteractionPage() {
     isConnected,
     onTranscriptionUpdate,
     onAISuggestion,
-    onCallEnded
+    onCallEnded,
+    onAIVoiceActive
   } = useSocket();
   
   // State
@@ -64,6 +72,28 @@ export default function InteractionPage() {
   const [callSid, setCallSid] = useState<string>('');
   const [conferenceName, setConferenceName] = useState<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
+  
+  // AI Context from backend (for dashboard display)
+  const [aiContext, setAiContext] = useState<{
+    customerContext?: {
+      name: string;
+      phone: string;
+      status: string;
+      notes: string | null;
+      totalCalls: number;
+      scheduledMeeting: string | null;
+      lifetimeValue: number;
+    };
+    recentConversations?: Array<{
+      summary: string;
+      date: string;
+      status: string;
+    }>;
+    aiSuggestions?: Array<{
+      type: string;
+      text: string;
+    }>;
+  } | null>(null);
 
   // Mock conversation data for testing
   const MOCK_CONVERSATION = [
@@ -212,13 +242,27 @@ export default function InteractionPage() {
       console.log('📞 Call ended:', data);
       handleEndCall();
     });
+    
+    // Listen for AI voice active context from backend
+    const unsubAIActive = onAIVoiceActive?.((data: any) => {
+      console.log('🤖 AI Voice Active with context:', data);
+      if (data.callId === callId || data.conversationId === callId) {
+        setAiContext({
+          customerContext: data.customerContext,
+          recentConversations: data.recentConversations,
+          aiSuggestions: data.aiSuggestions
+        });
+        setAiHandlingCall(true);
+      }
+    });
 
     return () => {
       unsubTranscription?.();
       unsubSuggestions?.();
       unsubEnded?.();
+      unsubAIActive?.();
     };
-  }, [onTranscriptionUpdate, onAISuggestion, onCallEnded]);
+  }, [onTranscriptionUpdate, onAISuggestion, onCallEnded, onAIVoiceActive, callId]);
 
   // Fetch customer history
   useEffect(() => {
@@ -392,296 +436,28 @@ export default function InteractionPage() {
           </div>
         </header>
 
-        {/* Chat Interface */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-slate-50">
-            {/* Customer Header */}
-            <div className="h-16 bg-white border-b border-slate-100 px-6 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleEndCall}
-                  className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
-                  {customer.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '??'}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-900 font-semibold">{customer.name || 'Customer'}</span>
-                    {customer.status === 'vip' && (
-                      <span className="px-2 py-0.5 bg-[#81d8d0] text-[#0a1128] text-[10px] font-bold uppercase rounded">Premium</span>
-                    )}
-                  </div>
-                  <span className="text-slate-400 text-xs">{customer.metadata?.company || 'Unknown Company'}</span>
-                </div>
-              </div>
-              
-              {/* Call Controls */}
-              <div className="flex items-center gap-3">
-                {/* Status Indicator */}
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full animate-pulse ${aiHandlingCall ? 'bg-purple-500' : 'bg-rose-500'}`}></span>
-                  <span className={`text-sm font-medium ${aiHandlingCall ? 'text-purple-600' : 'text-rose-500'}`}>
-                    {aiHandlingCall ? 'AI Handling' : 'Live'}
-                  </span>
-                </div>
-                
-                <span className="text-slate-900 font-mono text-lg font-semibold">{callDuration}</span>
-                
-                {/* Transfer to AI / Reclaim Button */}
-                {aiHandlingCall ? (
-                  <button 
-                    onClick={handleReclaimFromAI}
-                    className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 flex items-center gap-2 text-sm font-semibold transition-colors"
-                    title="Take call back from AI"
-                  >
-                    <UserCheck size={16} />
-                    Reclaim
-                  </button>
-                ) : (
-                  <button 
-                    onClick={handleTransferToAI}
-                    className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center gap-2 text-sm font-semibold transition-colors"
-                    title="Transfer call to AI assistant"
-                  >
-                    <Bot size={16} />
-                    Transfer to AI
-                  </button>
-                )}
-                
-                <button className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                  <Mic size={18} />
-                </button>
-                <button 
-                  onClick={handleEndCall}
-                  className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-200"
-                >
-                  <PhoneOff size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* Dial Status */}
-            {isDialing && (
-              <div className="bg-[#0a1128] text-white px-6 py-2 text-sm flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#81d8d0] animate-pulse"></span>
-                {dialStatus}
-              </div>
-            )}
-
-            {/* AI Monitoring Banner */}
-            {aiHandlingCall && (
-              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Bot size={20} className="text-white" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">AI Assistant Active</span>
-                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                      </div>
-                      <p className="text-purple-200 text-xs">Monitoring conversation • AI has full customer context</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={handleReclaimFromAI}
-                    className="px-4 py-2 bg-white text-purple-700 rounded-lg font-semibold text-sm hover:bg-purple-100 transition-colors flex items-center gap-2"
-                  >
-                    <UserCheck size={16} />
-                    Take Over Call
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Messages Area */}
-            <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
-              {transcription.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare size={28} className="text-slate-300" />
-                    </div>
-                    <p className="text-slate-500">Waiting for conversation...</p>
-                    <p className="text-slate-400 text-sm mt-1">Messages will appear here in real-time</p>
-                  </div>
-                </div>
-              ) : (
-                transcription.map((entry, index) => {
-                  const isCustomer = entry.speaker === 'customer';
-                  const isAIMessage = aiHandlingCall && !isCustomer;
-                  
-                  return (
-                    <div key={index} className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] flex gap-2 ${isCustomer ? 'flex-row-reverse' : ''}`}>
-                        {/* Avatar */}
-                        {!isCustomer && (
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            isAIMessage ? 'bg-purple-100' : 'bg-[#0a1128]'
-                          }`}>
-                            {isAIMessage ? (
-                              <Bot size={14} className="text-purple-600" />
-                            ) : (
-                              <span className="text-[#81d8d0] text-xs font-bold">JD</span>
-                            )}
-                          </div>
-                        )}
-                        <div>
-                          {/* Speaker label for AI */}
-                          {isAIMessage && (
-                            <span className="text-purple-600 text-[10px] font-semibold uppercase tracking-wide mb-1 block">
-                              AI Assistant
-                            </span>
-                          )}
-                          <div className={`rounded-2xl px-4 py-3 ${
-                            isCustomer 
-                              ? 'bg-slate-200 text-slate-900' 
-                              : isAIMessage 
-                                ? 'bg-purple-100 text-purple-900 border border-purple-200' 
-                                : 'bg-[#0a1128] text-white'
-                          }`}>
-                            <p className="text-sm leading-relaxed">{entry.text}</p>
-                          </div>
-                          <span className="text-slate-400 text-[10px] mt-1 block px-2">
-                            {formatTime(new Date(entry.timestamp))}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Sentiment Bar */}
-            <div className="px-6 py-3 bg-white border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500 text-xs font-medium">Sentiment</span>
-                <span className={`text-xs font-semibold ${
-                  currentSentiment === 'negative' ? 'text-rose-500' : 
-                  currentSentiment === 'positive' ? 'text-emerald-500' : 'text-amber-500'
-                }`}>{getSentimentLabel()}</span>
-              </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${getSentimentColor()}`} 
-                     style={{ width: currentSentiment === 'negative' ? '80%' : currentSentiment === 'positive' ? '20%' : '50%' }} 
-                />
-              </div>
-            </div>
-
-            {/* Message Input */}
-            <div className="p-4 bg-white border-t border-slate-100">
-              <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  className="flex-1 bg-transparent text-slate-900 placeholder-slate-400 outline-none text-sm"
-                />
-                <button className="w-9 h-9 rounded-lg bg-[#81d8d0] flex items-center justify-center text-[#0a1128] hover:bg-[#6bc4bc] transition-colors">
-                  <Send size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Sidebar */}
-          <aside className="w-72 bg-white border-l border-slate-100 flex flex-col overflow-hidden">
-            {/* Customer Info */}
-            <div className="p-4 border-b border-slate-100">
-              <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-3">Customer Info</h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-slate-600 text-sm">
-                  <Mail size={14} className="text-slate-400" />
-                  <span>{customer.email || 'No email'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-600 text-sm">
-                  <Phone size={14} className="text-slate-400" />
-                  <span>{customer.phoneNumber}</span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <p className="text-slate-400 text-[10px] uppercase tracking-wider font-medium">Lifetime Value</p>
-                  <p className="text-slate-900 font-bold text-lg">₹{(customer.metadata?.lifetimeValue || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <p className="text-slate-400 text-[10px] uppercase tracking-wider font-medium">Satisfaction</p>
-                  <p className="text-emerald-500 font-bold text-lg">{customer.metadata?.averageRating?.toFixed(1) || '0.0'}/5</p>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Suggestions */}
-            <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={14} className="text-amber-500" />
-                  <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">AI Suggestions</h3>
-                </div>
-                <span className="text-emerald-500 text-[10px] font-semibold">Active</span>
-              </div>
-              
-              <div className="space-y-3">
-                {suggestions.length > 0 ? suggestions.map((suggestion, index) => (
-                  <div key={index} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-amber-600 text-[10px] font-semibold">💬 Suggested Response</span>
-                    </div>
-                    <p className="text-slate-700 text-sm leading-relaxed mb-3">"{suggestion.text}"</p>
-                    <button 
-                      onClick={() => handleUseSuggestion(suggestion.text)}
-                      className="w-full py-2 bg-[#81d8d0]/20 text-[#0a1128] rounded-lg text-sm font-semibold hover:bg-[#81d8d0]/30 transition-colors border border-[#81d8d0]/30"
-                    >
-                      Use Response
-                    </button>
-                  </div>
-                )) : (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-amber-600 text-[10px] font-semibold">💬 Suggested Response</span>
-                    </div>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-3">Listening for conversation...</p>
-                    <button className="w-full py-2 bg-slate-100 text-slate-400 rounded-lg text-sm font-medium cursor-not-allowed">
-                      Use Response
-                    </button>
-                  </div>
-                )}
-                
-                {currentSentiment === 'negative' && (
-                  <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Gift size={12} className="text-emerald-600" />
-                      <span className="text-emerald-700 text-[10px] font-semibold">Retention Offer</span>
-                    </div>
-                    <p className="text-slate-700 text-sm">Offer ₹500 credit as compensation.</p>
-                    <button className="w-full py-2 mt-3 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors border border-slate-200">
-                      Apply Credit
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="p-4 border-t border-slate-100 space-y-2">
-              <button className="w-full py-3 bg-emerald-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20">
-                <CheckCircle size={16} />
-                Resolve Issue
-              </button>
-              <button className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors">
-                <Clock size={14} />
-                Create Follow-up
-              </button>
-            </div>
-          </aside>
+        {/* Call Visualizer - Shows for ALL call modes */}
+        <div className="flex-1 overflow-hidden p-4">
+          <CallVisualizer
+            isActive={true}
+            isAIHandling={aiHandlingCall}
+            customer={{
+              name: customer?.name || 'Customer',
+              phone: customer?.phoneNumber || '',
+              status: customer?.status || 'new',
+              notes: customer?.metadata?.notes || aiContext?.customerContext?.notes || null,
+              totalCalls: customer?.metadata?.totalCalls || aiContext?.customerContext?.totalCalls || 0,
+              scheduledMeeting: customer?.metadata?.scheduledMeeting || aiContext?.customerContext?.scheduledMeeting || null,
+              lifetimeValue: customer?.metadata?.lifetimeValue || aiContext?.customerContext?.lifetimeValue || 0
+            }}
+            aiSuggestions={aiContext?.aiSuggestions || suggestions.map(s => ({ type: 'suggestion', text: s.text }))}
+            callDuration={callDuration}
+            currentSpeaker={transcription.length > 0 ? transcription[transcription.length - 1]?.speaker as any : null}
+            transcripts={transcription}
+            onTransferToAI={handleTransferToAI}
+            onReclaimCall={handleReclaimFromAI}
+            onEndCall={handleEndCall}
+          />
         </div>
       </div>
     </div>
