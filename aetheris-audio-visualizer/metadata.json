@@ -1,0 +1,7 @@
+{
+  "name": "Aetheris Audio Visualizer",
+  "description": "A futuristic 3D audio visualizer featuring a deforming mesh globe that reacts to real-time sound with high-resolution vertex displacement and a premium mesh-gradient aesthetic.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
