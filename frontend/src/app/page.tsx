@@ -232,6 +232,60 @@ export default function DashboardHome() {
               <p className="mt-6 text-sm text-slate-400">
                 When you answer a call, you'll be redirected to the interaction page.
               </p>
+
+              {/* Mock Call Testing Section */}
+              <div className="mt-10 p-6 bg-amber-50 border border-amber-200 rounded-2xl max-w-md mx-auto">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <FlaskConical size={18} className="text-amber-600" />
+                  <h3 className="font-bold text-amber-800">Testing Mode</h3>
+                </div>
+                <p className="text-amber-700 text-sm mb-4">
+                  Start a mock call to test the interaction UI without making a real call.
+                </p>
+                
+                {/* Mock Customer Cards */}
+                <div className="space-y-2 mb-4">
+                  {MOCK_CUSTOMERS.map((customer, index) => (
+                    <button
+                      key={customer._id}
+                      onClick={() => {
+                        const mockCall: IncomingCall = {
+                          callId: `mock-call-${Date.now()}`,
+                          callSid: `mock-sid-${Date.now()}`,
+                          conferenceName: `mock-conference-${Date.now()}`,
+                          customer: customer as any
+                        };
+                        sessionStorage.setItem('activeCall', JSON.stringify(mockCall));
+                        sessionStorage.setItem('isMockCall', 'true');
+                        router.push(`/interaction/${mockCall.callId}`);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-md transition-all text-left"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#0a1128] to-slate-700 flex items-center justify-center text-[#81d8d0] font-bold text-sm">
+                        {customer.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900">{customer.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            customer.status === 'vip' ? 'bg-amber-200 text-amber-700' :
+                            customer.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {customer.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">{customer.metadata.company}</p>
+                      </div>
+                      <Play size={16} className="text-amber-600" />
+                    </button>
+                  ))}
+                </div>
+                
+                <p className="text-[10px] text-amber-600 uppercase tracking-wider font-medium">
+                  Click any customer to start mock interaction
+                </p>
+              </div>
             </div>
           </div>
         </div>

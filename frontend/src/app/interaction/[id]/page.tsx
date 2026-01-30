@@ -57,23 +57,77 @@ export default function InteractionPage() {
   const [isDialing, setIsDialing] = useState(false);
   const [dialStatus, setDialStatus] = useState<string>('');
   const [messageInput, setMessageInput] = useState('');
+  const [isMockCall, setIsMockCall] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // Mock conversation data for testing
+  const MOCK_CONVERSATION = [
+    { speaker: 'agent' as const, text: "Hello, thank you for calling support. How can I help you today?" },
+    { speaker: 'customer' as const, text: "Hi, I'm frustrated. My package is delayed again and it was supposed to be a birthday gift for tomorrow!" },
+    { speaker: 'agent' as const, text: "I understand your frustration. Let me pull up the tracking details right now." },
+    { speaker: 'customer' as const, text: "This is the second time this month. I'm a premium member and expected better service." },
+    { speaker: 'agent' as const, text: "I sincerely apologize for this experience. I can see the delay is weather-related. As a Premium member, I can upgrade to priority delivery once it reaches the local hub." },
+  ];
+
+  const MOCK_SUGGESTIONS: AISuggestion[] = [
+    { text: "I can see the delay is weather-related. As a Premium member, I can upgrade to priority delivery once it reaches the local hub.", type: 'response', confidence: 0.95 },
+    { text: "Let me check if we can offer you a discount on your next order as compensation for the inconvenience.", type: 'response', confidence: 0.88 },
+  ];
 
   // Load call data from sessionStorage on mount
   useEffect(() => {
     const storedCall = sessionStorage.getItem('activeCall');
+    const mockCallFlag = sessionStorage.getItem('isMockCall');
+    
     if (storedCall) {
       const callData: IncomingCall = JSON.parse(storedCall);
       setCustomer(callData.customer);
       setCallStartTime(new Date());
       
-      // Dial agent's phone to join conference
-      dialAgentPhone(callData);
+      if (mockCallFlag === 'true') {
+        // This is a mock call - simulate conversation
+        setIsMockCall(true);
+        sessionStorage.removeItem('isMockCall');
+        startMockConversation();
+      } else {
+        // Real call - dial agent's phone to join conference
+        dialAgentPhone(callData);
+      }
     } else {
       // No active call data, redirect to home
       router.push('/');
     }
   }, [router]);
+
+  // Start mock conversation simulation
+  const startMockConversation = () => {
+    setIsDialing(true);
+    setDialStatus('🧪 Mock Mode - Simulating conversation...');
+    
+    setTimeout(() => setIsDialing(false), 2000);
+    
+    // Add messages one by one with delays
+    MOCK_CONVERSATION.forEach((msg, index) => {
+      setTimeout(() => {
+        setTranscription(prev => [...prev, {
+          speaker: msg.speaker,
+          text: msg.text,
+          timestamp: new Date(),
+          confidence: 1.0
+        }]);
+        
+        // Update sentiment based on customer messages
+        if (msg.speaker === 'customer' && (msg.text.includes('frustrated') || msg.text.includes('expected better'))) {
+          setCurrentSentiment('negative');
+        }
+        
+        // Add AI suggestions after a few messages
+        if (index === 2) {
+          setSuggestions(MOCK_SUGGESTIONS);
+        }
+      }, (index + 1) * 2500);
+    });
+  };
 
   // Dial agent phone
   const dialAgentPhone = async (callData: IncomingCall) => {
