@@ -55,10 +55,62 @@ interface CallVisualizerProps {
   onEndCall?: () => void;
 }
 
+// ... (imports remain the same)
+
+// Enriched mock data helper
+const enrichCustomerData = (customer: any) => {
+  if (!customer) return null;
+  
+  // Specific mock for the demo number or generic fallback if matching
+  if (customer.phone?.includes('8104475493') || customer.name === 'Stella') {
+    return {
+      ...customer,
+      name: 'Priya Patel', // Using the name from the user's screenshot/request or keeping it consistent
+      lifetimeValue: 25000, // ₹25k LTV
+      status: 'vip',
+      notes: 'Urgent request for Mother\'s Birthday. Wants premium red roses with express delivery.',
+      scheduledMeeting: null,
+      keyDates: [
+        { label: "Mother's Birthday", date: "2026-02-02", description: "In 2 days" }
+      ],
+      preferences: {
+        delivery: 'Express (willing to pay extra)',
+        likes: ['Red Roses', 'Orchids', 'Premium Packaging'],
+        dislikes: ['Lilies', 'Plastic wrapping'],
+        channel: 'WhatsApp'
+      },
+      intents: ['Urgent Buy', 'Gift'],
+      conversationSummaries: [
+        {
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
+          summary: 'Inquired about rose bouquets. Mentioned upcoming birthday.',
+          sentiment: 'positive',
+          keyTopics: ['Roses', 'Birthday']
+        },
+        {
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // 1 month ago
+          summary: 'Purchased Orchid plant for office desk. Requested care instructions.',
+          sentiment: 'neutral',
+          keyTopics: ['Orchid', 'Care', 'Purchase'],
+          value: 800
+        },
+        {
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60), // 2 months ago
+          summary: 'Complaint about late delivery. Refund processed.',
+          sentiment: 'negative',
+          keyTopics: ['Delivery', 'Refund'],
+          value: 0
+        }
+      ]
+    };
+  }
+  return customer;
+};
+
 const CallVisualizer: React.FC<CallVisualizerProps> = ({
   isActive,
   isAIHandling = false,
-  customer,
+  customer: rawCustomer, // Rename prop to rawCustomer
   aiSuggestions,
   callDuration = '00:00',
   transcripts = [],
@@ -66,6 +118,9 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
   onTransferToAI,
   onEndCall
 }) => {
+  // Apply enrichment
+  const customer = enrichCustomerData(rawCustomer);
+
   const [audioLevel, setAudioLevel] = useState(0);
   const [latestMessage, setLatestMessage] = useState<TranscriptEntry | null>(null);
   const [activeTab, setActiveTab] = useState<'context' | 'store' | 'history'>('context');
@@ -104,96 +159,103 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
   }, [isActive, audioLevel]);
 
   const renderContextTab = () => (
-    <div className="flex-1 flex flex-col gap-6 animate-in fade-in duration-300">
-      {/* Stats */}
-      <div className="flex gap-12 py-6 border-y border-slate-100">
-        <div>
-          <p className="text-4xl font-extralight text-slate-900">{customer?.totalCalls || 0}</p>
-          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Total Calls</p>
+    <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300">
+      
+      {/* 1. Vital Context Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        
+        {/* Intent Card - Critical */}
+        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 opacity-10">
+            <Star size={64} className="text-amber-500" />
+          </div>
+          <p className="text-amber-600 text-[10px] font-bold tracking-[0.2em] uppercase mb-1">Current Intent</p>
+          <p className="text-amber-900 text-lg font-medium leading-tight">
+            {customer?.notes?.split('.')[0] || 'Analyzing conversation...'}
+          </p>
+           {customer?.intents && (
+            <div className="flex gap-2 mt-3">
+              {customer.intents.map((intent: string) => (
+                <span key={intent} className="px-2 py-0.5 bg-white/50 text-amber-700 rounded text-[10px] font-bold uppercase border border-amber-200">
+                  {intent}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <div>
-          <p className="text-2xl font-light text-slate-900 capitalize">{customer?.status || 'New'}</p>
-          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Status</p>
-        </div>
-        <div>
-          <p className="text-2xl font-light text-slate-900">{isAIHandling ? 'AI Agent' : 'You'}</p>
-          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Handler</p>
+
+        {/* Preferences / Key Dates */}
+        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col justify-between">
+           <div>
+            <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mb-2">Upcoming Event</p>
+            {customer?.keyDates && customer.keyDates.length > 0 ? (
+              <div>
+                <div className="flex items-center gap-2 text-slate-900 font-medium">
+                  <Calendar size={14} className="text-indigo-500" />
+                  {customer.keyDates[0].label}
+                </div>
+                <p className="text-slate-500 text-xs ml-6">{customer.keyDates[0].description} ({customer.keyDates[0].date})</p>
+              </div>
+            ) : (
+              <p className="text-slate-300 text-sm">No upcoming events known</p>
+            )}
+           </div>
+
+           <div className="mt-4 pt-4 border-t border-slate-200">
+             <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mb-2">Known Preferences</p>
+             <div className="flex flex-wrap gap-2">
+               {customer?.preferences?.likes?.map((like: string) => (
+                 <span key={like} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold border border-emerald-100">
+                   👍 {like}
+                 </span>
+               ))}
+               {customer?.preferences?.dislikes?.map((dislike: string) => (
+                 <span key={dislike} className="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[10px] font-bold border border-rose-100">
+                   👎 {dislike}
+                 </span>
+               ))}
+               {!customer?.preferences && <span className="text-slate-400 text-xs">Identifying...</span>}
+             </div>
+           </div>
         </div>
       </div>
 
-      {/* Context Cards */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="py-5">
-          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Last Request</p>
-          <p className={`text-xl font-light leading-relaxed ${customer?.notes ? 'text-slate-900' : 'text-slate-300'}`}>
-            {customer?.notes || 'No previous request'}
-          </p>
-        </div>
-        <div className="py-5">
-          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Scheduled Meeting</p>
-          <p className={`text-xl font-light ${customer?.scheduledMeeting ? 'text-slate-900' : 'text-slate-300'}`}>
-            {customer?.scheduledMeeting || 'None scheduled'}
-          </p>
-        </div>
-      </div>
-
-      {/* AI Insights */}
-      <div className="flex-1 bg-slate-50 rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">AI Insights</p>
-          <span className="flex items-center gap-2 text-slate-400 text-xs">
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-            Active
-          </span>
+      {/* 2. AI Real-time Insights Feed */}
+      <div className="flex-1 bg-white rounded-2xl border-2 border-slate-100 p-0 overflow-hidden flex flex-col">
+        <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+          <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">Live Intelligence</p>
+          <div className="flex items-center gap-2">
+             <Bot size={14} className="text-slate-400" />
+             <span className="text-[10px] font-bold text-slate-500">CONTEXTHUB AI</span>
+          </div>
         </div>
         
-        <div className="space-y-3">
-          {(() => {
-            const insights = [];
-            // Real-time AI Suggestions
-            if (aiSuggestions && aiSuggestions.length > 0) {
-              aiSuggestions.forEach((suggestion, idx) => {
-                const isAlert = suggestion.type === 'alert' || suggestion.type === 'priority';
-                insights.push(
-                  <div key={`ai-${idx}`} className={`flex items-center gap-4 p-3 rounded-xl mb-2 ${isAlert ? 'bg-rose-50' : 'bg-emerald-50'}`}>
-                    <Bot size={18} className={isAlert ? "text-rose-500" : "text-emerald-500"} />
-                    <div>
-                      <p className={`font-medium ${isAlert ? "text-rose-900" : "text-emerald-900"}`}>
-                        {isAlert ? 'Alert' : 'AI Suggestion'}
-                      </p>
-                      <p className={`text-sm font-medium mt-0.5 ${isAlert ? "text-rose-700" : "text-emerald-700"}`}>
-                        {suggestion.text}
-                      </p>
-                    </div>
-                  </div>
-                );
-              });
-            }
-            // Notes
-            if (customer?.notes) {
-              insights.push(
-                <div key="notes" className="flex items-center justify-between group cursor-pointer hover:bg-white rounded-xl p-3 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <MessageCircle size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-slate-900 font-medium">Previous Request</p>
-                      <p className="text-slate-500 text-sm font-light mt-0.5">"{customer.notes}"</p>
-                    </div>
-                  </div>
+        <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+           {/* Suggestions */}
+           {aiSuggestions && aiSuggestions.map((suggestion, idx) => {
+              const isAlert = suggestion.type === 'alert' || suggestion.type === 'priority';
+              return (
+                <div key={idx} className={`gap-3 p-3 rounded-xl border flex items-start ${isAlert ? 'bg-rose-50 border-rose-100' : 'bg-indigo-50 border-indigo-100'}`}>
+                   <div className={`mt-0.5 p-1.5 rounded-lg ${isAlert ? 'bg-rose-200/50 text-rose-700' : 'bg-indigo-200/50 text-indigo-700'}`}>
+                      {isAlert ? <Star size={12} fill="currentColor" /> : <Bot size={12} />}
+                   </div>
+                   <div>
+                     <p className={`text-xs font-bold uppercase tracking-wide mb-0.5 ${isAlert ? 'text-rose-800' : 'text-indigo-800'}`}>
+                       {isAlert ? 'Opportunity Alert' : 'Guidance'}
+                     </p>
+                     <p className={`text-sm font-medium leading-normal ${isAlert ? 'text-rose-900' : 'text-indigo-900'}`}>{suggestion.text}</p>
+                   </div>
                 </div>
               );
-            }
-            // Fallbacks
-            if (insights.length === 0) {
-              insights.push(
-                <div key="listening" className="flex items-center gap-3 text-slate-400 p-3">
-                  <Mic size={16} className="animate-pulse" />
-                  <p className="text-sm font-light">Listening for context...</p>
-                </div>
-              );
-            }
-            return insights;
-          })()}
+           })}
+           
+           {/* Fallback Empty State */}
+           {(!aiSuggestions || aiSuggestions.length === 0) && (
+              <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
+                 <Mic size={24} className="mb-2" />
+                 <p className="text-xs font-medium uppercase tracking-widest">Listening...</p>
+              </div>
+           )}
         </div>
       </div>
     </div>
@@ -202,198 +264,223 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
   const renderStoreTab = () => (
     <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
       <div className="flex items-center justify-between">
-         <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Quick Inventory</p>
-         <span className="text-xs font-medium text-slate-500">{storeProducts.length} items</span>
+         <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Boutique Inventory</p>
+         <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{storeProducts.length} items available</span>
       </div>
       <div className="flex-1 overflow-y-auto space-y-2 pr-2">
         {storeProducts.map((product: any) => (
-          <div key={product._id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-300 hover:shadow-sm transition-all bg-white">
+          <div key={product._id} className="p-4 rounded-xl border border-slate-100 hover:border-indigo-100 hover:bg-slate-50/50 transition-all bg-white group cursor-pointer">
             <div className="flex justify-between items-start">
               <div>
-                <p className="font-medium text-slate-900">{product.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{product.description}</p>
-                <span className="inline-block mt-2 px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded-md">
-                  {product.category}
-                </span>
+                <p className="font-semibold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{product.name}</p>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-1">{product.description}</p>
+                <div className="flex gap-2 mt-2">
+                  <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold uppercase rounded-md tracking-wider">
+                    {product.category}
+                  </span>
+                  {product.tags && product.tags.map((tag:string) => (
+                    <span key={tag} className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-bold uppercase rounded-md tracking-wider">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="text-right">
-                <p className="font-mono text-lg font-light text-slate-900">₹{product.price}</p>
+                <p className="font-mono text-sm font-bold text-slate-900">₹{product.price}</p>
                 {product.inStock ? (
-                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">In Stock</span>
+                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide flex items-center justify-end gap-1 mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Stock
+                  </span>
                 ) : (
-                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Out of Stock</span>
+                  <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wide mt-1">Sold Out</span>
                 )}
               </div>
             </div>
           </div>
         ))}
-        {storeProducts.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
-            <p>No products loaded.</p>
-          </div>
-        )}
       </div>
     </div>
   );
 
   const renderHistoryTab = () => (
     <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
-       <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Conversation History</p>
-       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-          {/* Mock Histories for UI if real ones absent */}
-          {(!customer?.notes && !customer?.scheduledMeeting) ? (
-             <div className="space-y-4">
-               {[1, 2, 3].map(i => (
-                 <div key={i} className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
-                   <div className="flex items-center justify-between mb-2">
-                     <span className="text-xs font-bold text-slate-500">Jan {20 - i}, 2026</span>
-                     <span className="px-2 py-0.5 bg-white text-slate-600 rounded text-[10px] font-bold border border-slate-200">
-                       Resolved
-                     </span>
-                   </div>
-                   <p className="text-sm text-slate-700 font-medium leading-relaxed">
-                     Customer inquired about premium bouquet options for an anniversary. Discussed red roses vs orchids.
-                   </p>
-                   <div className="mt-3 flex gap-2">
-                     <span className="text-[10px] text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">#inquiry</span>
-                     <span className="text-[10px] text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">#flowers</span>
-                   </div>
-                 </div>
-               ))}
-             </div>
-          ) : (
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
-              <p className="text-sm text-slate-600">
-                {customer?.notes || 'No detailed history available.'}
-              </p>
-            </div>
-          )}
+       <div className="flex items-center justify-between">
+         <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Journey & Timeline</p>
+         <div className="text-xs text-slate-500">Last contact: <span className="text-slate-900 font-medium">Today</span></div>
+       </div>
+       
+       <div className="flex-1 overflow-y-auto pr-2 relative">
+          {/* Vertical Timeline Line */}
+          <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-200"></div>
+
+          <div className="space-y-6 pl-0">
+             {customer?.conversationSummaries && customer.conversationSummaries.length > 0 ? (
+                // Use REAL history + injected mock history
+                customer.conversationSummaries.map((convo: any, i:number) => (
+                  <div key={i} className="relative pl-8 group">
+                     {/* Timeline Dot */}
+                     <div className={`absolute left-[9px] top-4 w-1.5 h-1.5 rounded-full border-2 border-white ring-1 ring-slate-300 z-10 ${convo.sentiment === 'negative' ? 'bg-rose-500' : convo.sentiment === 'positive' ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                     
+                     <div className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm group-hover:shadow-md transition-all">
+                       <div className="flex items-center justify-between mb-2">
+                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                           {new Date(convo.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                         </span>
+                         {convo.value && (
+                            <span className="text-xs font-mono font-medium text-emerald-600">+ ₹{convo.value}</span>
+                         )}
+                       </div>
+                       <p className="text-sm text-slate-800 leading-snug">{convo.summary}</p>
+                       {convo.keyTopics && (
+                         <div className="mt-3 flex gap-2">
+                           {convo.keyTopics.map((tag:string) => (
+                             <span key={tag} className="text-[9px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 font-medium uppercase tracking-wide">
+                               #{tag.toLowerCase()}
+                             </span>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                  </div>
+                ))
+             ) : (
+                <div className="text-center py-10 text-slate-400">
+                  <p>No history records found.</p>
+                </div>
+             )}
+          </div>
        </div>
     </div>
   );
 
+  // Stats for Header
+  const ltv = customer?.lifetimeValue || 0;
+  const calls = customer?.totalCalls || 0;
+  // Format LTV: 25000 -> 25K
+  const ltvFormatted = ltv > 1000 ? `${(ltv/1000).toFixed(ltv % 1000 === 0 ? 0 : 1)}K` : ltv;
+
   return (
-    <div className="h-full bg-white rounded-3xl p-8 flex gap-8">
+    <div className="h-full bg-white rounded-3xl p-6 flex gap-6 border border-slate-100 shadow-2xl shadow-slate-200/50">
       
-      {/* LEFT: Globe + Voice (35%) */}
-      <div className="w-[35%] flex flex-col">
-        {/* Globe Card - Minimal */}
-        <div className="flex-1 bg-slate-950 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="w-full max-w-[180px] aspect-square">
-            <VisualizerScene audioLevel={audioLevel} isActive={isActive} />
-          </div>
-          <div className="mt-6 text-center">
-            <p className="text-slate-500 text-xs font-medium tracking-[0.2em] uppercase mb-1">
-              {isAIHandling ? 'AI Handling' : 'Live Call'}
-            </p>
-            <p className="text-white text-4xl font-extralight tracking-tight font-mono">
-              {callDuration}
-            </p>
-          </div>
-          <div className="mt-6 w-full">
-            {latestMessage ? (
-              <div className="bg-white/5 rounded-2xl p-4">
-                <p className="text-slate-500 text-[10px] font-medium tracking-[0.15em] uppercase mb-2">
-                  {latestMessage.speaker === 'customer' ? 'Customer says' : 'Agent says'}
-                </p>
-                <p className="text-white text-base font-light leading-relaxed">
-                  "{latestMessage.text}"
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-3 py-4">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map(i => (
-                    <span key={i} className="w-1.5 h-6 bg-white/20 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
-                  ))}
-                </div>
-                <span className="text-slate-500 text-sm">Listening...</span>
-              </div>
-            )}
-          </div>
+      {/* LEFT: Globe + Controls (30%) - Dark Mode */}
+      <div className="w-[30%] flex flex-col bg-slate-950 rounded-2xl p-5 text-white">
+        <div className="flex items-center justify-between mb-6 opacity-60">
+           <div className="flex items-center gap-2">
+             <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+             <span className="text-[10px] font-bold uppercase tracking-widest">Live Feed</span>
+           </div>
+           <span className="text-xs font-mono opacity-80">{callDuration}</span>
         </div>
-        <div className="mt-4 space-y-3">
+
+        {/* Visualizer */}
+        <div className="flex-1 flex items-center justify-center relative my-4">
+           <div className="absolute inset-0 bg-blue-500/10 blur-3xl rounded-full"></div>
+           <div className="w-48 h-48">
+              <VisualizerScene audioLevel={audioLevel} isActive={isActive} />
+           </div>
+        </div>
+
+        {/* Transcription Snippet */}
+        <div className="min-h-[100px] mb-6">
+           {latestMessage ? (
+              <div className="fade-in">
+                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                    {latestMessage.speaker}
+                 </p>
+                 <p className="text-lg font-light leading-snug text-slate-100">
+                   "{latestMessage.text}"
+                 </p>
+              </div>
+           ) : (
+             <div className="text-center opacity-30">
+               <p className="text-sm">Waiting for speech...</p>
+             </div>
+           )}
+        </div>
+
+        {/* Controls */}
+        <div className="space-y-3 mt-auto">
           {isAIHandling ? (
-            <button onClick={onReclaimCall} className="w-full py-4 rounded-2xl bg-slate-900 text-white text-sm font-medium tracking-wide hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-              <UserCheck size={18} /> Take Over Call
+            <button onClick={onReclaimCall} className="w-full py-3 rounded-xl bg-white text-slate-950 text-xs font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors">
+              Take Control
             </button>
           ) : (
-            <button onClick={onTransferToAI} className="w-full py-4 rounded-2xl bg-slate-900 text-white text-sm font-medium tracking-wide hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-              <Bot size={18} /> Transfer to AI
+            <button onClick={onTransferToAI} className="w-full py-3 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-900/50">
+              Activate AI Agent
             </button>
           )}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { icon: Gift, label: 'Offer' },
-              { icon: FileText, label: 'Note' },
-              { icon: Clock, label: 'Callback' },
-              { icon: PhoneOff, label: 'End', onClick: onEndCall },
-            ].map(({ icon: Icon, label, onClick }) => (
-              <button key={label} onClick={onClick} className="py-3 rounded-xl border border-slate-200 hover:border-slate-900 transition-colors flex flex-col items-center gap-1.5">
-                <Icon size={16} className="text-slate-600" />
-                <span className="text-[10px] font-medium text-slate-500">{label}</span>
-              </button>
-            ))}
+          <div className="flex gap-2">
+             <button onClick={onEndCall} className="flex-1 py-3 rounded-xl bg-slate-800/50 hover:bg-rose-900/30 text-rose-300 text-xs font-bold uppercase tracking-widest transition-colors">
+               Disconnect
+             </button>
           </div>
         </div>
       </div>
 
-      {/* RIGHT: Context Tabs (65%) */}
-      <div className="flex-1 flex flex-col gap-6">
+      {/* RIGHT: High-Density Context (70%) */}
+      <div className="w-[70%] flex flex-col gap-6">
         
-        {/* Customer Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-4xl font-extralight text-slate-900 tracking-tight">
-                {customer?.name || 'Customer'}
-              </h1>
-              {customer?.status === 'vip' && (
-                <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold tracking-wide flex items-center gap-1">
-                  <Star size={10} /> VIP
-                </span>
-              )}
-            </div>
-            <p className="text-slate-400 text-sm font-light tracking-wide">{customer?.phone}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-5xl font-extralight text-slate-900 tracking-tighter">
-              ₹{((customer?.lifetimeValue || 0) / 1000).toFixed(0)}K
-            </p>
-            <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Lifetime Value</p>
-          </div>
+        {/* Header: Customer Vital Stats */}
+        <div className="flex items-center justify-between pb-6 border-b border-slate-100">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-serif italic text-xl">
+                 {customer?.name?.substring(0,1) || 'C'}
+              </div>
+              <div>
+                 <h1 className="text-2xl font-serif text-slate-900 leading-none mb-1">{customer?.name || 'Unknown Caller'}</h1>
+                 <p className="text-xs text-slate-400 font-medium tracking-wide flex gap-2">
+                   {customer?.phone}
+                   {customer?.status === 'vip' && <span className="text-amber-500 flex items-center gap-1">★ VIP Client</span>}
+                 </p>
+              </div>
+           </div>
+           
+           <div className="flex gap-8">
+              <div className="text-right">
+                 <p className="text-2xl font-light text-slate-900 font-serif">₹{ltvFormatted}</p>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Lifetime Value</p>
+              </div>
+              <div className="text-right">
+                 <p className="text-2xl font-light text-slate-900 font-serif">{calls}</p>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Orders</p>
+              </div>
+              <div className="text-right">
+                 <p className="text-2xl font-light text-slate-900 font-serif">{storeProducts.length}</p>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Products</p>
+              </div>
+           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100 gap-8">
+        {/* Tab Navigation */}
+        <div className="flex gap-6">
           {[
-            { id: 'context', label: 'Context & AI' },
-            { id: 'store', label: 'Product Catalog' },
-            { id: 'history', label: 'Call History' }
+            { id: 'context', label: 'Analysis & Intent' },
+            { id: 'store', label: 'Catalog' },
+            { id: 'history', label: 'History' }
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-4 text-xs font-bold tracking-[0.15em] uppercase transition-colors relative ${
-                activeTab === tab.id ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'
+              className={`pb-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+                activeTab === tab.id ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               {tab.label}
-              {activeTab === tab.id && (
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-900 rounded-full" />
-              )}
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
-        {activeTab === 'context' && renderContextTab()}
-        {activeTab === 'store' && renderStoreTab()}
-        {activeTab === 'history' && renderHistoryTab()}
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden relative">
+           {activeTab === 'context' && renderContextTab()}
+           {activeTab === 'store' && renderStoreTab()}
+           {activeTab === 'history' && renderHistoryTab()}
+        </div>
 
       </div>
     </div>
   );
 };
+
 
 export default CallVisualizer;

@@ -442,7 +442,15 @@ router.post('/end-conversation', async (req, res) => {
           'metadata.lastContactDate': new Date(),
           'metadata.lastCallSummary': summary
         },
-        $inc: { 'metadata.totalCalls': 1 }
+        $inc: { 'metadata.totalCalls': 1 },
+        $push: {
+          conversationSummaries: {
+            date: new Date(),
+            summary: summary,
+            sentiment: outcome === 'positive' ? 'positive' : 'neutral', // Simple inference
+            keyTopics: [] // Could be extracted
+          }
+        }
       }
     );
 
