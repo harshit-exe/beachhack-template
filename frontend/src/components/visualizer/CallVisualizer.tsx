@@ -418,7 +418,7 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
         {/* Visualizer */}
         <div className="flex-1 flex items-center justify-center relative my-4">
            <div className="absolute inset-0 bg-blue-500/10 blur-3xl rounded-full"></div>
-           <div className="w-48 h-48">
+           <div className="w-54 h-54">
               <VisualizerScene audioLevel={audioLevel} isActive={isActive} />
            </div>
         </div>

@@ -107,7 +107,15 @@ Provide response suggestions in this exact JSON format:
     }
   ],
   "sentiment": "positive/neutral/negative",
-  "recommendedActions": ["action1", "action2"]
+  "recommendedActions": ["action1", "action2"],
+  "intent": "Inquiry/Purchase/Complaint/etc",
+  "keyPoints": ["Extracted key point 1", "Extracted key point 2"],
+  "upcomingEvents": [{"label": "Event Name", "date": "YYYY-MM-DD", "description": "Brief description"}],
+  "preferences": {
+    "likes": ["extracted like 1"],
+    "dislikes": ["extracted dislike 1"],
+    "delivery": "extracted delivery pref"
+  }
 }`;
 
       const completion = await this.client.chat.completions.create({
@@ -131,7 +139,11 @@ Provide response suggestions in this exact JSON format:
           { text: 'How can I help you today?', type: 'response', confidence: 0.5 }
         ],
         sentiment: 'neutral',
-        recommendedActions: []
+        recommendedActions: [],
+        intent: 'General',
+        keyPoints: [],
+        upcomingEvents: [],
+        preferences: {}
       };
     }
   }

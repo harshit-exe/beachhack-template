@@ -460,7 +460,7 @@ export default function InteractionPage() {
               nextBestAction: customer?.metadata?.nextBestAction,
               keyDates: customer?.metadata?.keyDates?.map(d => ({
                  label: d.label,
-                 date: new Date(d.date).toISOString().split('T')[0], // Convert Date to string YYYY-MM-DD
+                 date: typeof d.date === 'string' ? d.date.split('T')[0] : new Date(d.date).toISOString().split('T')[0],
                  description: d.description || ''
               })) || [],
               preferences: {

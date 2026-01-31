@@ -19,8 +19,8 @@ const VisualizerScene: React.FC<VisualizerSceneProps> = ({ audioLevel = 0, isAct
       camera={{ position: [0, 0, 4.5], fov: 40 }}
       style={{ background: 'transparent' }}
     >
-      {/* Light gradient background for white theme */}
-      <color attach="background" args={['#f8fafc']} />
+      {/* Background is transparent for overlay effects */}
+      {/* <color attach="background" args={['#00000000']} /> */}
       
       {/* Soft ambient fill */}
       <ambientLight intensity={1.2} />

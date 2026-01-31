@@ -211,7 +211,12 @@ class MediaStreamHandler {
         this.io.emit('ai:suggestion', {
           conversationId,
           suggestions: suggestions.suggestions || [],
-          recommendedActions: suggestions.recommendedActions || []
+          suggestions: suggestions.suggestions || [],
+          recommendedActions: suggestions.recommendedActions || [],
+          intent: suggestions.intent,
+          keyPoints: suggestions.keyPoints,
+          upcomingEvents: suggestions.upcomingEvents,
+          preferences: suggestions.preferences
         });
       }
     } catch (error) {
