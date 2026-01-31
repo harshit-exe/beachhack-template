@@ -452,7 +452,29 @@ export default function InteractionPage() {
               keyPoints: customer?.metadata?.keyPoints || aiContext?.customerContext?.keyPoints || [],
               totalCalls: customer?.metadata?.totalCalls || aiContext?.customerContext?.totalCalls || 0,
               scheduledMeeting: customer?.metadata?.scheduledMeeting || aiContext?.customerContext?.scheduledMeeting || null,
-              lifetimeValue: customer?.metadata?.lifetimeValue || aiContext?.customerContext?.lifetimeValue || 0
+              lifetimeValue: customer?.metadata?.lifetimeValue || aiContext?.customerContext?.lifetimeValue || 0,
+              // Map enriched fields
+              intents: customer?.metadata?.activeIntents || [],
+              churnRisk: customer?.metadata?.churnRisk as any || 'low',
+              engagementScore: customer?.metadata?.engagementScore || 0,
+              nextBestAction: customer?.metadata?.nextBestAction,
+              keyDates: customer?.metadata?.keyDates?.map(d => ({
+                 label: d.label,
+                 date: new Date(d.date).toISOString().split('T')[0], // Convert Date to string YYYY-MM-DD
+                 description: d.description || ''
+              })) || [],
+              preferences: {
+                likes: customer?.preferences?.likes || [],
+                dislikes: customer?.preferences?.dislikes || [],
+                channel: customer?.preferences?.communicationChannel,
+                notes: customer?.metadata?.notes // Mapping metadata notes to prefs notes for visibility
+              },
+              conversationSummaries: customer?.metadata?.conversationSummaries?.map(s => ({
+                date: new Date(s.date),
+                summary: s.summary,
+                keyTopics: s.keyTopics,
+                sentiment: s.sentiment
+              })) || []
             }}
             aiSuggestions={aiContext?.aiSuggestions || suggestions.map(s => ({ type: 'suggestion', text: s.text }))}
             callDuration={callDuration}

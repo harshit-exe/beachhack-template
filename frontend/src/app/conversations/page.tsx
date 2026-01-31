@@ -62,28 +62,7 @@ export default function ConversationsPage() {
       try {
         // For demo, create mock data since we don't have a conversations list endpoint
         const mockConversations: Conversation[] = [
-          {
-            _id: '1',
-            customer: { _id: 'c1', phoneNumber: '+919876543210', name: 'Rahul Sharma', status: 'vip' } as any,
-            channel: 'phone',
-            status: 'completed',
-            resolution: { status: 'resolved', notes: 'Issue resolved' },
-            summary: { auto: 'Customer inquiry about premium plan upgrade' },
-            rating: 5,
-            createdAt: new Date(Date.now() - 3600000),
-            updatedAt: new Date()
-          },
-          {
-            _id: '2',
-            customer: { _id: 'c2', phoneNumber: '+919876543211', name: 'Priya Patel', status: 'active' } as any,
-            channel: 'phone',
-            status: 'completed',
-            resolution: { status: 'pending', notes: 'Awaiting callback' },
-            summary: { auto: 'Billing dispute - requires manager approval' },
-            rating: 3,
-            createdAt: new Date(Date.now() - 7200000),
-            updatedAt: new Date()
-          },
+          
           {
             _id: '3',
             customer: { _id: 'c3', phoneNumber: '+919876543212', name: 'Amit Kumar', status: 'new' } as any,

@@ -256,7 +256,9 @@ Return ONLY a valid JSON object.
 - Use null (not string "null") if information is not found.
 - Be smart about dates: "fifteen Feb" -> "Feb 15th".
 - Infer events from context: "annual seat" likely means "anniversary" in a gift context.
-- Extract preferences clearly.`
+- Correct ASR/Phonetic errors: "wedding annuity" -> "Wedding Anniversary", "Raul" -> "Rahul" (if Indian context), "Rahul Serma" -> "Rahul Sharma".
+- Extract preferences clearly.
+- Current Date: ${new Date().toDateString()} (Use this to infer years for dates like "next friday" or "15th Feb")`
           },
           {
             role: 'user',
@@ -271,7 +273,16 @@ Return JSON in this exact format:
   "company": "Company or null",
   "purpose": "Purpose or null",
   "scheduledMeeting": "Meeting date/time or null",
-  "preferences": "Preferences (likes, colors, events) or null"
+  "keyDates": [{"label": "Event Name", "date": "YYYY-MM-DD", "description": "Description"}],
+  "preferences": {
+    "likes": ["Red roses", "Morning delivery"],
+    "dislikes": ["Lilies"],
+    "communicationChannel": "whatsapp/email/phone"
+  },
+  "intents": ["Purchase", "Complaint", "Inquiry"],
+  "churnRisk": "low/medium/high/critical",
+  "engagementScore": 0-100,
+  "nextBestAction": "Suggest bouquet X"
 }`
           }
         ],

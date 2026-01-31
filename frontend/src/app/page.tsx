@@ -39,34 +39,6 @@ const MOCK_CUSTOMERS = [
       totalCalls: 15,
       notes: 'Premium member, prefers quick resolutions'
     }
-  },
-  {
-    _id: 'mock-customer-2',
-    phoneNumber: '+919876543211',
-    name: 'Rahul Sharma',
-    email: 'rahul@techcorp.in',
-    status: 'active',
-    metadata: {
-      company: 'TechCorp India',
-      lifetimeValue: 8200,
-      averageRating: 4.2,
-      totalCalls: 8,
-      notes: 'Regular customer, interested in enterprise plans'
-    }
-  },
-  {
-    _id: 'mock-customer-3',
-    phoneNumber: '+919876543212',
-    name: 'Priya Patel',
-    email: 'priya@startup.io',
-    status: 'new',
-    metadata: {
-      company: 'Startup.io',
-      lifetimeValue: 1500,
-      averageRating: 0,
-      totalCalls: 1,
-      notes: 'New customer, onboarding call'
-    }
   }
 ];
 

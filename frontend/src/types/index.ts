@@ -25,6 +25,18 @@ export interface CustomerMetadata {
     keyPoints?: string[];
     scheduledMeeting?: string;
     preferredLanguage?: string;
+    churnRisk?: 'low' | 'medium' | 'high' | 'critical';
+    engagementScore?: number;
+    nextBestAction?: string;
+    activeIntents?: string[];
+    keyDates?: Array<{ label: string; date: Date; description: string }>;
+    conversationSummaries?: Array<{
+        date: Date;
+        summary: string;
+        keyTopics?: string[];
+        sentiment?: 'positive' | 'neutral' | 'negative';
+        actionItems?: string[];
+    }>;
 }
 
 export interface Customer {

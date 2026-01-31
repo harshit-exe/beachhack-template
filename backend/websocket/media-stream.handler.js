@@ -266,17 +266,49 @@ class MediaStreamHandler {
             addToSetFields['metadata.keyPoints'] = details.purpose;
           }
 
-          // 5. Preferences / Likes (The Upgrade)
+          // 5. Preferences (Rich Object Support)
           if (details.preferences) {
-            // Check if it's already in likes to avoid duplicate visual clutter
-            if (!customer.preferences?.likes?.includes(details.preferences)) {
-               addToSetFields['preferences.likes'] = details.preferences;
-            }
-            // Add preference as a keypoint too if significant
-            addToSetFields['metadata.keyPoints'] = `Likes: ${details.preferences}`;
+             const prefs = details.preferences;
+             
+             // Update communication channel if found
+             if (prefs.communicationChannel) {
+               setFields['preferences.communicationChannel'] = prefs.communicationChannel;
+             }
+             
+             // Add likes/dislikes
+             if (prefs.likes && Array.isArray(prefs.likes)) {
+               addToSetFields['preferences.likes'] = { $each: prefs.likes };
+             }
+             if (prefs.dislikes && Array.isArray(prefs.dislikes)) {
+               addToSetFields['preferences.dislikes'] = { $each: prefs.dislikes };
+             }
           }
 
-          // 6. Scheduled Meeting
+          // 6. Rich Metadata (Key Dates & Intents)
+          if (details.keyDates && Array.isArray(details.keyDates)) {
+             // We use $addToSet but for objects it's tricky, so we might check existence or just push
+             // For simplicity, we'll strip time and check duplication by label in a real app
+             // Here we just add them
+             addToSetFields['metadata.keyDates'] = { $each: details.keyDates };
+          }
+
+          if (details.intents && Array.isArray(details.intents)) {
+             setFields['metadata.activeIntents'] = details.intents; // Replace intents to keep them current
+          }
+          
+          if (details.churnRisk) {
+             setFields['metadata.churnRisk'] = details.churnRisk;
+          }
+          
+          if (details.engagementScore) {
+             setFields['metadata.engagementScore'] = details.engagementScore;
+          }
+          
+          if (details.nextBestAction) {
+             setFields['metadata.nextBestAction'] = details.nextBestAction;
+          }
+
+          // 7. Scheduled Meeting
           if (details.scheduledMeeting) {
             setFields['metadata.scheduledMeeting'] = details.scheduledMeeting;
             addToSetFields['metadata.keyPoints'] = `Meeting: ${details.scheduledMeeting}`;

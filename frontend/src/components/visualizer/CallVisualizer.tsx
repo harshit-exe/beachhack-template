@@ -39,7 +39,26 @@ interface CustomerContext {
   totalCalls: number;
   scheduledMeeting: string | null;
   lifetimeValue: number;
-  keyPoints?: string[]; // Adding this line
+  keyPoints?: string[];
+  intents?: string[];
+  churnRisk?: 'low' | 'medium' | 'high';
+  engagementScore?: number;
+  nextBestAction?: string;
+  keyDates?: Array<{ label: string; date: string; description: string }>;
+  preferences?: {
+    delivery?: string;
+    likes?: string[];
+    dislikes?: string[];
+    channel?: string;
+    notes?: string;
+  };
+  conversationSummaries?: Array<{
+    date: Date;
+    summary: string;
+    sentiment?: 'positive' | 'neutral' | 'negative';
+    keyTopics?: string[];
+    value?: number;
+  }>;
 }
 
 interface TranscriptEntry {
@@ -61,71 +80,10 @@ interface CallVisualizerProps {
   onEndCall?: () => void;
 }
 
-// Enriched mock data helper with MORE details
-const enrichCustomerData = (customer: any) => {
-  if (!customer) return null;
-  
-  // Specific mock for the demo number
-  if (customer.phone?.includes('8104475493') || customer.name === 'Stella' || customer.name === 'Priya Patel') {
-    return {
-      ...customer,
-      name: 'Priya Patel', // Using the name from the user's screenshot
-      lifetimeValue: 25000,
-      status: 'vip',
-      notes: 'Urgent request for Mother\'s Birthday.',
-      scheduledMeeting: null,
-      keyPoints: [
-         "Planning for Mother's Birthday (Feb 2nd)",
-         "Looking for White vehicle / Premium options",
-         "Loves White & Red combination",
-         "Willing to pay for Express Delivery"
-      ],
-      churnRisk: 'low', // New metric
-      engagementScore: 85, // New metric
-      sentiment: 'anxious', // New metric
-      nextBestAction: 'Secure the order with "Peace of Mind" guarantee on delivery time.', // New actionable insight
-      keyDates: [
-        { label: "Mother's Birthday", date: "2026-02-02", description: "In 2 days" }
-      ],
-      preferences: {
-        delivery: 'Express (willing to pay extra)',
-        likes: ['Red Roses', 'Orchids', 'Premium Packaging', 'White & Red combinations'],
-        dislikes: ['Lilies', 'Plastic wrapping'],
-        channel: 'WhatsApp',
-        notes: "Mom's favorite colors are White and Red."
-      },
-      intents: ['Urgent Buy', 'Gift'],
-      conversationSummaries: [
-        {
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-          summary: 'Inquired about rose bouquets. Mentioned upcoming birthday.',
-          sentiment: 'positive',
-          keyTopics: ['Roses', 'Birthday']
-        },
-        {
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // 1 month ago
-          summary: 'Purchased Orchid plant for office desk. Requested care instructions.',
-          sentiment: 'neutral',
-          keyTopics: ['Orchid', 'Care', 'Purchase'],
-          value: 800
-        },
-        {
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60), // 2 months ago
-          summary: 'Complaint about late delivery. Refund processed.',
-          sentiment: 'negative',
-          keyTopics: ['Delivery', 'Refund'],
-          value: 0
-        }
-      ]
-    };
-  }
-  return customer;
-};
-
 const CallVisualizer: React.FC<CallVisualizerProps> = ({
   isActive,
   isAIHandling = false,
-  customer: rawCustomer,
+  customer,
   aiSuggestions,
   callDuration = '00:00',
   transcripts = [],
@@ -133,9 +91,6 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
   onTransferToAI,
   onEndCall
 }) => {
-  // Apply enrichment
-  const customer = enrichCustomerData(rawCustomer);
-
   const [audioLevel, setAudioLevel] = useState(0);
   const [latestMessage, setLatestMessage] = useState<TranscriptEntry | null>(null);
   const [activeTab, setActiveTab] = useState<'context' | 'store' | 'history'>('context');
@@ -317,7 +272,28 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
                         {isAlert ? 'Critical Recommendation' : 'Suggested Response'}
                       </p>
                       <p className={`text-base font-medium leading-relaxed ${isAlert ? 'text-rose-900' : 'text-slate-700 group-hover:text-slate-900 transition-colors'}`}>
-                        {suggestion.text}
+                        {/* Highlighted Text Rendering */}
+                        {(() => {
+                           const text = suggestion.text;
+                           // Regex for Price (₹550), Colors, and Key Terms
+                           const parts = text.split(/(\₹[\d,]+(?:\.\d{2})?|\b(?:White Lily Arrangement|White|Red|Blue|Green|Yellow|Pink|Purple|Orange|Black|Silver|Gold|Birthday|Mom's|Mother's|Anniversary|Premium|Express Delivery)\b)/gi);
+                           
+                           return (
+                             <span>
+                               {parts.map((part, i) => {
+                                 // Price Styling
+                                 if (/^₹[\d,]+(?:\.\d{2})?$/.test(part)) {
+                                   return <span key={i} className="font-bold text-emerald-700 bg-emerald-100/50 px-1.5 rounded-md mx-0.5 border border-emerald-200/50">{part}</span>;
+                                 }
+                                 // Keyword Styling
+                                 if (/^(White Lily Arrangement|White|Red|Blue|Green|Yellow|Pink|Purple|Orange|Black|Silver|Gold|Birthday|Mom's|Mother's|Anniversary|Premium|Express Delivery)$/i.test(part)) {
+                                   return <span key={i} className="font-bold text-indigo-700 bg-indigo-100/50 px-1.5 rounded-md mx-0.5 border border-indigo-200/50">{part}</span>;
+                                 }
+                                 return part;
+                               })}
+                             </span>
+                           );
+                        })()}
                       </p>
                    </div>
                 </div>

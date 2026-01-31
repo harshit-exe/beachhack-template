@@ -110,7 +110,17 @@ const customerSchema = new mongoose.Schema({
     generatedProfile: {
       type: String,
       description: "AI-generated profile summary (e.g., 'Price sensitive, likes roses')"
-    }
+    },
+    
+    // CRM / AI Insights Persisted
+    churnRisk: { 
+      type: String, 
+      enum: ['low', 'medium', 'high', 'critical'],
+      default: 'low'
+    },
+    engagementScore: { type: Number, default: 0 },
+    nextBestAction: String,
+    activeIntents: [String]
   },
   
   alerts: [{

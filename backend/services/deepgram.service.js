@@ -26,10 +26,11 @@ class DeepgramService {
     try {
       const connection = this.client.listen.live({
         model: 'nova-2',  // Use standard nova-2 model
-        language: 'en-US',
+        language: 'en-IN',
         smart_format: true,
         punctuate: true,
         interim_results: false,
+        keywords: ['Rahul', 'Sharma', 'Anniversary', 'Bouquet', 'Wife', 'Birthday', 'Gift'],
         endpointing: 300,  // 300ms silence = end of speech
         encoding: 'mulaw',
         sample_rate: 8000,
