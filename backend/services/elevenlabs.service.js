@@ -195,9 +195,19 @@ class ElevenLabsService {
    * Generate TwiML for new customer AI screening
    * AI collects name, purpose of call, and other info before routing to agent
    */
-  generateNewCustomerScreeningTwiml(customerInfo = {}, callbackUrl) {
+  generateNewCustomerScreeningTwiml(customerInfo = {}, callbackUrl, host, conversationId) {
     const VoiceResponse = require('twilio').twiml.VoiceResponse;
     const twiml = new VoiceResponse();
+
+    // Start local media stream for dashboard transcription
+    if (host && conversationId) {
+      const start = twiml.start();
+      const stream = start.stream({
+        url: `wss://${host}/media-stream`,
+        track: 'inbound_track'
+      });
+      stream.parameter({ name: 'conversationId', value: conversationId });
+    }
 
     // Friendly greeting for new customers
     twiml.say({ voice: 'Polly.Amy' }, 

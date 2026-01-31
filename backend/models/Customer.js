@@ -52,7 +52,9 @@ const customerSchema = new mongoose.Schema({
     doNotDisturb: {
       type: Boolean,
       default: false
-    }
+    },
+    likes: [String],
+    dislikes: [String]
   },
   
   metadata: {
@@ -89,6 +91,8 @@ const customerSchema = new mongoose.Schema({
     },
     
     // RICH CONTEXT FIELDS
+    keyPoints: [String], // EXTRACTED KEY POINTS AS ARRAY
+    
     keyDates: [{
       label: { type: String, required: true }, // e.g., "Wife's Birthday"
       date: { type: Date, required: true },

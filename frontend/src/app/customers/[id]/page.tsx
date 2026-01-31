@@ -226,6 +226,23 @@ export default function CustomerDetailPage() {
                   </div>
                 )}
 
+                {/* Key Insights / Key Points */}
+                {customer.metadata?.keyPoints && customer.metadata.keyPoints.length > 0 && (
+                  <div className="bg-white rounded-xl border border-indigo-100 p-5 shadow-sm">
+                    <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                       <Star size={16} className="text-indigo-500" /> Key Insights
+                    </h3>
+                    <ul className="space-y-2">
+                       {customer.metadata.keyPoints.map((point, i) => (
+                         <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                            {point}
+                         </li>
+                       ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* Interaction History */}
                 <div className="bg-white rounded-xl border border-slate-100 p-5">
                   <h3 className="font-semibold text-slate-900 mb-4">Call History</h3>
@@ -261,6 +278,25 @@ export default function CustomerDetailPage() {
 
               {/* Right Column - Stats */}
               <div className="space-y-4">
+                {/* Preferences */}
+                {customer.preferences && (customer.preferences.likes?.length || customer.preferences.communicationChannel) && (
+                  <div className="bg-white rounded-xl border border-slate-100 p-5">
+                    <h3 className="font-semibold text-slate-900 mb-3">Preferences</h3>
+                    <div className="flex flex-wrap gap-2">
+                       {customer.preferences.likes?.map((like: string) => (
+                        <span key={like} className="px-2.5 py-1 bg-rose-50 text-rose-600 rounded-lg text-sm flex items-center gap-1 font-medium">
+                          <span className="text-rose-400">♥</span> {like}
+                        </span>
+                      ))}
+                      {customer.preferences.communicationChannel && (
+                         <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-sm capitalize">
+                           {customer.preferences.communicationChannel}
+                         </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-xl border border-slate-100 p-5">
                   <h3 className="font-semibold text-slate-900 mb-4">Statistics</h3>
                   <div className="space-y-4">

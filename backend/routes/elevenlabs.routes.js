@@ -209,6 +209,14 @@ router.get('/customer-context', async (req, res) => {
       context: buildContextString(customer)
     };
 
+    // Inject Demo Context for specific number
+    if (cleanPhone.includes('8104475493')) {
+      context.customer.name = "Priya Patel";
+      context.customer.status = "vip";
+      console.log('✨ Injecting DEMO context for Priya Patel');
+      context.context += " IMPORTANT: usage context: This customer is planning for her Mother's Birthday in 2 days. Her mother's favorite colors are WHITE and RED. She prefers premium packaging and express delivery.";
+    }
+
     console.log(`📱 ElevenLabs: Customer context requested for ${phone} - Found: ${customer.name}`);
     res.json(context);
 
@@ -252,7 +260,17 @@ router.post('/update-customer', async (req, res) => {
     if (name) updates.name = name;
     if (email) updates.email = email;
     if (company) updates['metadata.company'] = company;
-    if (notes) updates['metadata.notes'] = notes;
+
+    // Intelligent Note Appending
+    if (notes) {
+      const existingNotes = customer?.metadata?.notes || '';
+      // Avoid duplicate notes if sent repeatedly
+      if (!existingNotes.includes(notes)) {
+        updates['metadata.notes'] = existingNotes 
+          ? `${existingNotes}\n• ${notes}` 
+          : notes;
+      }
+    }
 
     if (customer) {
       customer = await Customer.findByIdAndUpdate(
@@ -433,7 +451,24 @@ router.post('/end-conversation', async (req, res) => {
     
     console.log(`📞 ElevenLabs: Conversation ended - ${phone}: ${summary}`);
 
-    // Update customer's last contact
+    // Calculate simulated value add based on outcome
+    let valueAdd = 0;
+    if (outcome === 'positive' || summary.toLowerCase().includes('order') || summary.toLowerCase().includes('purchase')) {
+      valueAdd = 5000; // Simulated average order value
+    }
+
+    // Auto-generate alerts based on summary keywords
+    const newAlerts = [];
+    if (summary.toLowerCase().includes('urgent') || summary.toLowerCase().includes('asap')) {
+      newAlerts.push({
+        type: 'warning',
+        message: 'Customer expressed urgency in last call',
+        createdAt: new Date(),
+        acknowledged: false
+      });
+    }
+
+    // Update customer's last contact and metrics
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     await Customer.findOneAndUpdate(
       { phoneNumber: { $regex: cleanPhone } },
@@ -442,14 +477,20 @@ router.post('/end-conversation', async (req, res) => {
           'metadata.lastContactDate': new Date(),
           'metadata.lastCallSummary': summary
         },
-        $inc: { 'metadata.totalCalls': 1 },
+        $inc: { 
+          'metadata.totalCalls': 1,
+          'metadata.totalSpent': valueAdd,
+          'metadata.lifetimeValue': valueAdd
+        },
         $push: {
           conversationSummaries: {
             date: new Date(),
             summary: summary,
-            sentiment: outcome === 'positive' ? 'positive' : 'neutral', // Simple inference
-            keyTopics: [] // Could be extracted
-          }
+            sentiment: outcome === 'positive' ? 'positive' : 'neutral',
+            keyTopics: [], 
+            actionItems: []
+          },
+          alerts: { $each: newAlerts }
         }
       }
     );
@@ -480,11 +521,19 @@ function buildContextString(customer) {
   if (customer.metadata?.notes) {
     parts.push(`Previous notes: ${customer.metadata.notes}`);
   }
+
+  if (customer.metadata?.keyPoints?.length) {
+    parts.push(`Start of Critical Key Points: ${customer.metadata.keyPoints.join('. ')}. End of Key Points.`);
+  }
   
   if (customer.metadata?.scheduledMeeting) {
     parts.push(`Has scheduled meeting: ${customer.metadata.scheduledMeeting}`);
   }
   
+  if (customer.preferences?.likes?.length) {
+    parts.push(`Customer Preferences/Likes: ${customer.preferences.likes.join(', ')}.`);
+  }
+
   if (customer.status === 'churned') {
     parts.push(`This customer previously churned. Be extra attentive and try to understand their concerns.`);
   }

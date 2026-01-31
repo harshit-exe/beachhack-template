@@ -73,7 +73,7 @@ class CallController {
         // NEW CUSTOMER: Route to AI for screening first
         console.log('🤖 Routing new customer to AI screening');
         const callbackUrl = `https://${host}/api/twilio/ai-screening-complete?conversationId=${conversation._id}&conference=${conferenceName}`;
-        twiml = elevenlabsService.generateNewCustomerScreeningTwiml(customer, callbackUrl);
+        twiml = elevenlabsService.generateNewCustomerScreeningTwiml(customer, callbackUrl, host, conversation._id);
         
         // Notify dashboard that AI is screening
         if (io) {

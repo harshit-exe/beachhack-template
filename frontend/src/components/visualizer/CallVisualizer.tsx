@@ -14,9 +14,14 @@ import {
   FileText,
   Clock,
   Mic,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  ShieldAlert,
+  Zap,
+  Heart
 } from 'lucide-react';
 
+// Dynamic import for the visualizer
 const VisualizerScene = dynamic(() => import('./VisualizerScene'), { 
   ssr: false,
   loading: () => (
@@ -34,6 +39,7 @@ interface CustomerContext {
   totalCalls: number;
   scheduledMeeting: string | null;
   lifetimeValue: number;
+  keyPoints?: string[]; // Adding this line
 }
 
 interface TranscriptEntry {
@@ -55,29 +61,38 @@ interface CallVisualizerProps {
   onEndCall?: () => void;
 }
 
-// ... (imports remain the same)
-
-// Enriched mock data helper
+// Enriched mock data helper with MORE details
 const enrichCustomerData = (customer: any) => {
   if (!customer) return null;
   
-  // Specific mock for the demo number or generic fallback if matching
-  if (customer.phone?.includes('8104475493') || customer.name === 'Stella') {
+  // Specific mock for the demo number
+  if (customer.phone?.includes('8104475493') || customer.name === 'Stella' || customer.name === 'Priya Patel') {
     return {
       ...customer,
-      name: 'Priya Patel', // Using the name from the user's screenshot/request or keeping it consistent
-      lifetimeValue: 25000, // ₹25k LTV
+      name: 'Priya Patel', // Using the name from the user's screenshot
+      lifetimeValue: 25000,
       status: 'vip',
-      notes: 'Urgent request for Mother\'s Birthday. Wants premium red roses with express delivery.',
+      notes: 'Urgent request for Mother\'s Birthday.',
       scheduledMeeting: null,
+      keyPoints: [
+         "Planning for Mother's Birthday (Feb 2nd)",
+         "Looking for White vehicle / Premium options",
+         "Loves White & Red combination",
+         "Willing to pay for Express Delivery"
+      ],
+      churnRisk: 'low', // New metric
+      engagementScore: 85, // New metric
+      sentiment: 'anxious', // New metric
+      nextBestAction: 'Secure the order with "Peace of Mind" guarantee on delivery time.', // New actionable insight
       keyDates: [
         { label: "Mother's Birthday", date: "2026-02-02", description: "In 2 days" }
       ],
       preferences: {
         delivery: 'Express (willing to pay extra)',
-        likes: ['Red Roses', 'Orchids', 'Premium Packaging'],
+        likes: ['Red Roses', 'Orchids', 'Premium Packaging', 'White & Red combinations'],
         dislikes: ['Lilies', 'Plastic wrapping'],
-        channel: 'WhatsApp'
+        channel: 'WhatsApp',
+        notes: "Mom's favorite colors are White and Red."
       },
       intents: ['Urgent Buy', 'Gift'],
       conversationSummaries: [
@@ -110,7 +125,7 @@ const enrichCustomerData = (customer: any) => {
 const CallVisualizer: React.FC<CallVisualizerProps> = ({
   isActive,
   isAIHandling = false,
-  customer: rawCustomer, // Rename prop to rawCustomer
+  customer: rawCustomer,
   aiSuggestions,
   callDuration = '00:00',
   transcripts = [],
@@ -159,103 +174,155 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
   }, [isActive, audioLevel]);
 
   const renderContextTab = () => (
-    <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300">
+    <div className="flex-1 flex flex-col gap-6 animate-in fade-in duration-300">
       
-      {/* 1. Vital Context Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* 1. Vital Context Grid (Enhanced) */}
+      <div className="grid grid-cols-2 gap-6">
         
-        {/* Intent Card - Critical */}
-        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-3 opacity-10">
-            <Star size={64} className="text-amber-500" />
-          </div>
-          <p className="text-amber-600 text-[10px] font-bold tracking-[0.2em] uppercase mb-1">Current Intent</p>
-          <p className="text-amber-900 text-lg font-medium leading-tight">
-            {customer?.notes?.split('.')[0] || 'Analyzing conversation...'}
-          </p>
-           {customer?.intents && (
-            <div className="flex gap-2 mt-3">
-              {customer.intents.map((intent: string) => (
-                <span key={intent} className="px-2 py-0.5 bg-white/50 text-amber-700 rounded text-[10px] font-bold uppercase border border-amber-200">
-                  {intent}
-                </span>
-              ))}
+        {/* LEFT COLUMN: Intent + Key Points */}
+        <div className="flex flex-col gap-4">
+          
+          {/* Intent Card - Critical */}
+          <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100 relative overflow-hidden group shadow-sm hover:shadow-md transition-shadow">
+            <div className="absolute top-0 right-0 p-3 opacity-10">
+              <Star size={80} className="text-amber-500" />
             </div>
-          )}
+            <p className="text-amber-700 text-xs font-bold tracking-[0.2em] uppercase mb-2">Current Intent</p>
+            <p className="text-amber-950 text-xl font-serif font-medium leading-snug">
+              {customer?.notes?.split('.')[0] || 'Analyzing conversation...'}
+            </p>
+             {customer?.intents && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {customer.intents.map((intent: string) => (
+                  <span key={intent} className="px-3 py-1 bg-white/60 text-amber-800 rounded-lg text-xs font-bold uppercase border border-amber-200 shadow-sm">
+                    {intent}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* NEW: Key Context Points */}
+          <div className="bg-white rounded-2xl p-5 border border-indigo-50 shadow-sm flex-1 bg-gradient-to-br from-white to-slate-50">
+             <div className="flex items-center gap-2 mb-3">
+               <FileText size={14} className="text-indigo-500" />
+               <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">Smart Context</p>
+             </div>
+             {customer?.keyPoints && customer.keyPoints.length > 0 ? (
+               <ul className="space-y-2">
+                 {customer.keyPoints.map((point: string, idx: number) => (
+                   <li key={idx} className="flex items-start gap-2 text-sm text-slate-700 leading-snug">
+                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                     {point}
+                   </li>
+                 ))}
+               </ul>
+             ) : (
+               <p className="text-slate-400 text-sm italic">Listening for key details...</p>
+             )}
+          </div>
         </div>
 
-        {/* Preferences / Key Dates */}
-        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col justify-between">
-           <div>
-            <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mb-2">Upcoming Event</p>
-            {customer?.keyDates && customer.keyDates.length > 0 ? (
-              <div>
-                <div className="flex items-center gap-2 text-slate-900 font-medium">
-                  <Calendar size={14} className="text-indigo-500" />
-                  {customer.keyDates[0].label}
+        {/* Dynamic Insights Grid */}
+        <div className="grid grid-cols-2 gap-4">
+           {/* Event */}
+           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex flex-col justify-between">
+              <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">Upcoming Event</p>
+              {customer?.keyDates && customer.keyDates.length > 0 ? (
+                <div>
+                  <div className="flex items-center gap-2 text-indigo-900 font-semibold text-lg mt-1">
+                    <Calendar size={18} className="text-indigo-500" />
+                    {customer.keyDates[0].label}
+                  </div>
+                  <p className="text-slate-500 text-sm font-medium">{customer.keyDates[0].description}</p>
                 </div>
-                <p className="text-slate-500 text-xs ml-6">{customer.keyDates[0].description} ({customer.keyDates[0].date})</p>
-              </div>
-            ) : (
-              <p className="text-slate-300 text-sm">No upcoming events known</p>
-            )}
+              ) : (
+                <p className="text-slate-300 text-sm">No events</p>
+              )}
            </div>
 
-           <div className="mt-4 pt-4 border-t border-slate-200">
-             <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mb-2">Known Preferences</p>
+           {/* Next Action */}
+           <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm flex flex-col justify-between">
+              <p className="text-emerald-600/70 text-[10px] font-bold tracking-[0.2em] uppercase">Recommended Action</p>
+              <div className="mt-1">
+                 <p className="text-emerald-900 font-medium leading-snug text-sm">
+                   {customer?.nextBestAction || 'Listen & Empathize'}
+                 </p>
+              </div>
+           </div>
+
+           {/* Preferences (Full Width) */}
+           <div className="col-span-2 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+             <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">Preferences</p>
              <div className="flex flex-wrap gap-2">
                {customer?.preferences?.likes?.map((like: string) => (
-                 <span key={like} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold border border-emerald-100">
-                   👍 {like}
+                 <span key={like} className="px-2.5 py-1 bg-white text-slate-700 rounded-md text-xs font-bold border border-slate-200 shadow-sm flex items-center gap-1.5">
+                   <Heart size={10} className="text-rose-400 fill-rose-400" /> {like}
                  </span>
                ))}
-               {customer?.preferences?.dislikes?.map((dislike: string) => (
-                 <span key={dislike} className="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[10px] font-bold border border-rose-100">
-                   👎 {dislike}
+               {customer?.preferences?.delivery && (
+                 <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-md text-xs font-bold border border-indigo-100 shadow-sm flex items-center gap-1.5">
+                   <Zap size={10} className="text-indigo-500 fill-indigo-500" /> {customer.preferences.delivery}
                  </span>
-               ))}
+               )}
                {!customer?.preferences && <span className="text-slate-400 text-xs">Identifying...</span>}
              </div>
            </div>
         </div>
       </div>
 
-      {/* 2. AI Real-time Insights Feed */}
-      <div className="flex-1 bg-white rounded-2xl border-2 border-slate-100 p-0 overflow-hidden flex flex-col">
-        <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-          <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">Live Intelligence</p>
-          <div className="flex items-center gap-2">
-             <Bot size={14} className="text-slate-400" />
-             <span className="text-[10px] font-bold text-slate-500">CONTEXTHUB AI</span>
+      {/* 2. LIVE INTELLIGENCE FEED (Expanded) */}
+      <div className="flex-1 bg-white rounded-2xl border-2 border-indigo-50 shadow-lg shadow-indigo-100/50 overflow-hidden flex flex-col">
+        <div className="p-4 bg-indigo-50/30 border-b border-indigo-50 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+               <Bot size={20} />
+             </div>
+             <div>
+               <p className="text-indigo-900 font-bold text-sm tracking-wide">AI COPILOT</p>
+               <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-wider">Live Guidance</p>
+             </div>
+          </div>
+          <div className="flex gap-4">
+             <div className="text-right">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Sentiment</p>
+                <p className="text-emerald-600 font-bold text-sm">Positive (85%)</p>
+             </div>
+             <div className="text-right">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Risk</p>
+                <p className="text-slate-600 font-bold text-sm">Low</p>
+             </div>
           </div>
         </div>
         
-        <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto bg-gradient-to-b from-white to-slate-50/30">
+           {/* Fallback if empty */}
+           {(!aiSuggestions || aiSuggestions.length === 0) && (
+              <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50 py-8">
+                 <Mic size={32} className="mb-3 animate-pulse text-indigo-300" />
+                 <p className="text-sm font-bold uppercase tracking-widest text-indigo-300">Listening to conversation...</p>
+              </div>
+           )}
+
            {/* Suggestions */}
            {aiSuggestions && aiSuggestions.map((suggestion, idx) => {
               const isAlert = suggestion.type === 'alert' || suggestion.type === 'priority';
               return (
-                <div key={idx} className={`gap-3 p-3 rounded-xl border flex items-start ${isAlert ? 'bg-rose-50 border-rose-100' : 'bg-indigo-50 border-indigo-100'}`}>
-                   <div className={`mt-0.5 p-1.5 rounded-lg ${isAlert ? 'bg-rose-200/50 text-rose-700' : 'bg-indigo-200/50 text-indigo-700'}`}>
-                      {isAlert ? <Star size={12} fill="currentColor" /> : <Bot size={12} />}
-                   </div>
-                   <div>
-                     <p className={`text-xs font-bold uppercase tracking-wide mb-0.5 ${isAlert ? 'text-rose-800' : 'text-indigo-800'}`}>
-                       {isAlert ? 'Opportunity Alert' : 'Guidance'}
-                     </p>
-                     <p className={`text-sm font-medium leading-normal ${isAlert ? 'text-rose-900' : 'text-indigo-900'}`}>{suggestion.text}</p>
+                <div key={idx} className={`group relative pl-4 animate-in slide-in-from-bottom-2 duration-500`}>
+                   {/* Decorative Line */}
+                   <div className={`absolute left-0 top-1 bottom-1 w-1 rounded-full ${isAlert ? 'bg-rose-400' : 'bg-indigo-300 group-hover:bg-indigo-500 transition-colors'}`}></div>
+                   
+                   <div className="py-1">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60 ${isAlert ? 'text-rose-600' : 'text-slate-500'}`}>
+                        {isAlert ? 'Critical Recommendation' : 'Suggested Response'}
+                      </p>
+                      <p className={`text-base font-medium leading-relaxed ${isAlert ? 'text-rose-900' : 'text-slate-700 group-hover:text-slate-900 transition-colors'}`}>
+                        {suggestion.text}
+                      </p>
                    </div>
                 </div>
               );
            })}
-           
-           {/* Fallback Empty State */}
-           {(!aiSuggestions || aiSuggestions.length === 0) && (
-              <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
-                 <Mic size={24} className="mb-2" />
-                 <p className="text-xs font-medium uppercase tracking-widest">Listening...</p>
-              </div>
-           )}
         </div>
       </div>
     </div>
@@ -431,6 +498,7 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
                  <p className="text-xs text-slate-400 font-medium tracking-wide flex gap-2">
                    {customer?.phone}
                    {customer?.status === 'vip' && <span className="text-amber-500 flex items-center gap-1">★ VIP Client</span>}
+                   {customer?.churnRisk === 'low' && <span className="text-emerald-500 flex items-center gap-1">• Safe</span>}
                  </p>
               </div>
            </div>
@@ -481,6 +549,5 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
     </div>
   );
 };
-
 
 export default CallVisualizer;

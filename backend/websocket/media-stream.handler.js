@@ -175,9 +175,36 @@ class MediaStreamHandler {
 
   async generateSuggestions(transcript, history, conversationId) {
     try {
+      // Fetch customer context if conversationId exists
+      let customer = null;
+      if (conversationId) {
+         try {
+           const conversation = await conversationService.findById(conversationId);
+           if (conversation?.customerId) {
+             // ensure we have the full document if populated, or fetch it if it's just ID
+             customer = conversation.customerId.name ? conversation.customerId : await customerService.findById(conversation.customerId);
+             // console.log(`🧠 AI Context Loaded for ${customer?.name}`);
+           }
+         } catch (e) {
+           console.log('Error fetching context for AI:', e.message);
+         }
+      }
+
+      // Fetch inventory for product-aware suggestions
+      let inventory = "No product information available.";
+      try {
+        const storeService = require('../services/store.service');
+        // Fetch inventory (assuming single store owner for now, or fetch by context)
+        inventory = await storeService.getInventoryForAI(null);
+      } catch (err) {
+        console.log('Error fetching inventory for AI:', err.message);
+      }
+
       const suggestions = await groqService.generateSuggestions({
         lastMessage: transcript,
-        history: history.map(text => ({ speaker: 'customer', text }))
+        history: history.map(text => ({ speaker: 'customer', text })),
+        customer: customer,
+        inventory: inventory // PASSING INVENTORY
       });
       
       if (suggestions) {
@@ -196,34 +223,80 @@ class MediaStreamHandler {
   async extractAndSaveCustomerDetails(transcriptionHistory, conversationId) {
     try {
       console.log('🤖 Calling Groq to extract customer details...');
-      const details = await groqService.extractCustomerDetails(transcriptionHistory);
+      const details = await groqService.extractCustomerDetails(transcriptionHistory); // Returns { name, email, company, purpose, preferences }
       console.log('📋 Extraction result:', details);
       
       if (details) {
-        // Get conversation to find customer
         const conversation = await conversationService.findById(conversationId);
-        console.log('📞 Conversation found:', !!conversation, 'CustomerId:', conversation?.customerId);
         
         if (conversation && conversation.customerId) {
-          const updates = {};
+          const customer = conversation.customerId; // This is the full customer doc
+          const customerId = customer._id;
           
-          if (details.name) updates.name = details.name;
-          if (details.email) updates.email = details.email;
-          if (details.company) updates['metadata.company'] = details.company;
-          if (details.purpose) updates['metadata.notes'] = details.purpose;
+          const updateOps = {};
+          const setFields = {};
+          const addToSetFields = {};
+
+          // 1. Intelligent Name Update (Only if unknown or missing)
+          if (details.name && (!customer.name || customer.name === 'Unknown')) {
+            setFields.name = details.name;
+          }
+
+          // 2. Email Update (Only if missing)
+          if (details.email && !customer.email) {
+            setFields.email = details.email;
+          }
+
+          // 3. Company Update
+          if (details.company) {
+            setFields['metadata.company'] = details.company;
+          }
+
+          // 4. Smart Note Appending & Key Points (The Fix)
+          if (details.purpose) {
+            const existingNotes = customer.metadata?.notes || '';
+            // Append to notes string for legacy support
+            if (!existingNotes.includes(details.purpose)) {
+              setFields['metadata.notes'] = existingNotes 
+                ? `${existingNotes}\n• ${details.purpose}`
+                : details.purpose;
+            }
+            
+            // Add to Key Points Array (New Requirement)
+            addToSetFields['metadata.keyPoints'] = details.purpose;
+          }
+
+          // 5. Preferences / Likes (The Upgrade)
+          if (details.preferences) {
+            // Check if it's already in likes to avoid duplicate visual clutter
+            if (!customer.preferences?.likes?.includes(details.preferences)) {
+               addToSetFields['preferences.likes'] = details.preferences;
+            }
+            // Add preference as a keypoint too if significant
+            addToSetFields['metadata.keyPoints'] = `Likes: ${details.preferences}`;
+          }
+
+          // 6. Scheduled Meeting
           if (details.scheduledMeeting) {
-            updates['metadata.scheduledMeeting'] = details.scheduledMeeting;
+            setFields['metadata.scheduledMeeting'] = details.scheduledMeeting;
+            addToSetFields['metadata.keyPoints'] = `Meeting: ${details.scheduledMeeting}`;
           }
+
+          // Construct Mongoose Update
+          if (Object.keys(setFields).length > 0) updateOps.$set = setFields;
+          if (Object.keys(addToSetFields).length > 0) updateOps.$addToSet = addToSetFields;
+
+          console.log('📝 Smart Updates to apply:', JSON.stringify(updateOps, null, 2));
           
-          console.log('📝 Updates to apply:', updates);
-          
-          if (Object.keys(updates).length > 0) {
-            const customerId = conversation.customerId._id || conversation.customerId;
-            await customerService.updateCustomer(customerId, updates);
-            console.log('💾 Customer details saved successfully!');
+          if (Object.keys(updateOps).length > 0) {
+            // dynamic import to avoid circular dependency
+            const Customer = require('../models/Customer');
+            await Customer.findByIdAndUpdate(customerId, updateOps, { new: true });
+            console.log('💾 Customer details merged safely!');
           } else {
-            console.log('⚠️ No updates to apply');
+            console.log('⚠️ No new details to merge.');
           }
+
         } else {
           console.log('⚠️ No conversation or customerId found');
         }

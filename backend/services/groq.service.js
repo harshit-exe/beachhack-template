@@ -84,6 +84,18 @@ Customer Info:
 - Name: ${context.customer?.name || 'Unknown'}
 - Status: ${context.customer?.status || 'new'}
 - Total Calls: ${context.customer?.metadata?.totalCalls || 0}
+- Key Context: ${context.customer?.metadata?.keyPoints?.join('. ') || 'None'}
+- Preferences: ${context.customer?.preferences?.likes?.length ? 'Likes: ' + context.customer.preferences.likes.join(', ') : 'None'}
+- Notes: ${context.customer?.metadata?.notes || 'None'}
+
+Store Inventory (Available Products):
+${context.inventory || 'No inventory data available.'}
+
+INSTRUCTIONS:
+1. Cross-reference Customer Preferences with Store Inventory.
+2. If the customer likes a color (e.g., White), recommend specific matching products from the inventory (e.g., "White Lily Arrangement").
+3. Be specific with product names and prices if relevant.
+4. If no perfect match, suggest the closest alternative.
 
 Provide response suggestions in this exact JSON format:
 {
@@ -240,8 +252,11 @@ Message: "${text}"`
           {
             role: 'system',
             content: `Extract customer information from conversation transcripts. 
-Return ONLY a valid JSON object. If information is not found, use null for that field.
-Be careful to extract only explicitly stated information, don't make assumptions.`
+Return ONLY a valid JSON object. 
+- Use null (not string "null") if information is not found.
+- Be smart about dates: "fifteen Feb" -> "Feb 15th".
+- Infer events from context: "annual seat" likely means "anniversary" in a gift context.
+- Extract preferences clearly.`
           },
           {
             role: 'user',
@@ -251,12 +266,12 @@ ${conversationText}
 
 Return JSON in this exact format:
 {
-  "name": "Full name if mentioned, null otherwise",
-  "email": "Email if mentioned, null otherwise",
-  "company": "Company name if mentioned, null otherwise",
-  "purpose": "Brief purpose of call if mentioned, null otherwise",
-  "scheduledMeeting": "Meeting details if scheduling mentioned, null otherwise",
-  "preferences": "Any preferences mentioned, null otherwise"
+  "name": "Full name or null",
+  "email": "Email or null",
+  "company": "Company or null",
+  "purpose": "Purpose or null",
+  "scheduledMeeting": "Meeting date/time or null",
+  "preferences": "Preferences (likes, colors, events) or null"
 }`
           }
         ],

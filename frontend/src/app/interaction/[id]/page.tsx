@@ -80,6 +80,7 @@ export default function InteractionPage() {
       phone: string;
       status: string;
       notes: string | null;
+      keyPoints?: string[];
       totalCalls: number;
       scheduledMeeting: string | null;
       lifetimeValue: number;
@@ -95,18 +96,20 @@ export default function InteractionPage() {
     }>;
   } | null>(null);
 
-  // Mock conversation data for testing
+  // Mock conversation data for testing - Flower Boutique Scenario
   const MOCK_CONVERSATION = [
-    { speaker: 'agent' as const, text: "Hello, thank you for calling support. How can I help you today?" },
-    { speaker: 'customer' as const, text: "Hi, I'm frustrated. My package is delayed again and it was supposed to be a birthday gift for tomorrow!" },
-    { speaker: 'agent' as const, text: "I understand your frustration. Let me pull up the tracking details right now." },
-    { speaker: 'customer' as const, text: "This is the second time this month. I'm a premium member and expected better service." },
-    { speaker: 'agent' as const, text: "I sincerely apologize for this experience. I can see the delay is weather-related. As a Premium member, I can upgrade to priority delivery once it reaches the local hub." },
+    { speaker: 'agent' as const, text: "Welcome to The Rose Garden. How can I make your day beautiful?" },
+    { speaker: 'customer' as const, text: "Hi, I need something really special for my mother's birthday in two days. It's urgent." },
+    { speaker: 'agent' as const, text: "Happy birthday to her in advance! Do you have any specific flowers in mind?" },
+    { speaker: 'customer' as const, text: "She loves white and red. Maybe something elegant? I want it to look premium." },
+    { speaker: 'agent' as const, text: "We can create a stunning 'Crimson & Pearl' luxury bouquet with red velvet roses and white orchids." },
+    { speaker: 'customer' as const, text: "That sounds perfect. Can you ensure it arrives by the morning of the 2nd?" },
   ];
 
   const MOCK_SUGGESTIONS: AISuggestion[] = [
-    { text: "I can see the delay is weather-related. As a Premium member, I can upgrade to priority delivery once it reaches the local hub.", type: 'response', confidence: 0.95 },
-    { text: "Let me check if we can offer you a discount on your next order as compensation for the inconvenience.", type: 'response', confidence: 0.88 },
+    { text: "Suggest the 'Royal Jubilee' arrangement which features her favorite Red & White combination.", type: 'response', confidence: 0.98 },
+    { text: "Offer 'Express Morning Delivery' service (₹500) to guarantee arrival by 10 AM on the 2nd.", type: 'action', confidence: 0.95 },
+    { text: "Upsell: 'Would you like to add a handwritten note on premium cardstock?'", type: 'action', confidence: 0.90 },
   ];
 
   // Load call data from sessionStorage on mount
@@ -446,6 +449,7 @@ export default function InteractionPage() {
               phone: customer?.phoneNumber || '',
               status: customer?.status || 'new',
               notes: customer?.metadata?.notes || aiContext?.customerContext?.notes || null,
+              keyPoints: customer?.metadata?.keyPoints || aiContext?.customerContext?.keyPoints || [],
               totalCalls: customer?.metadata?.totalCalls || aiContext?.customerContext?.totalCalls || 0,
               scheduledMeeting: customer?.metadata?.scheduledMeeting || aiContext?.customerContext?.scheduledMeeting || null,
               lifetimeValue: customer?.metadata?.lifetimeValue || aiContext?.customerContext?.lifetimeValue || 0

@@ -2,27 +2,6 @@ const Customer = require('../models/Customer');
 
 // Mock data for testing - this simulates existing customers
 const MOCK_CUSTOMERS = {
-  '+919922041218': {
-    name: 'Harsh Sharma',
-    email: 'harsh@example.com',
-    status: 'vip',
-    tags: ['premium', 'enterprise-inquiry'],
-    metadata: {
-      totalCalls: 5,
-      lastContactDate: new Date('2026-01-28'),
-      firstContactDate: new Date('2025-12-15'),
-      lifetimeValue: 15000,
-      notes: 'Premium customer, interested in enterprise plan. Previous call about API integration.',
-      preferredLanguage: 'English',
-      company: 'TechCorp Solutions'
-    },
-    alerts: [
-      { type: 'info', message: 'Interested in upgrading to Enterprise plan', createdAt: new Date() }
-    ],
-    insights: [
-      { category: 'purchase_intent', description: 'High interest in premium features', confidence: 0.9 }
-    ]
-  },
   '+918104475493': {
     name: 'Rahul Patel',
     email: 'rahul.p@gmail.com',

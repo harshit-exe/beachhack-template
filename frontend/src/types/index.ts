@@ -22,6 +22,7 @@ export interface CustomerMetadata {
     firstContactDate?: Date;
     company?: string;
     notes?: string;
+    keyPoints?: string[];
     scheduledMeeting?: string;
     preferredLanguage?: string;
 }
@@ -38,6 +39,9 @@ export interface Customer {
         language: string;
         callbackTime?: string;
         timezone: string;
+        likes?: string[];
+        dislikes?: string[];
+        doNotDisturb?: boolean;
     };
     metadata: CustomerMetadata;
     alerts: CustomerAlert[];
