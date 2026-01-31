@@ -65,14 +65,24 @@ export default function ConversationsPage() {
           
           {
             _id: '3',
-            customer: { _id: 'c3', phoneNumber: '+919876543212', name: 'Amit Kumar', status: 'new' } as any,
+            customerId: { _id: 'c3', phoneNumber: '+919876543212', name: 'Amit Kumar', status: 'new' } as any,
             channel: 'phone',
             status: 'completed',
             resolution: { status: 'escalated', notes: 'Technical issue escalated' },
             summary: { auto: 'Service outage reported in Mumbai region' },
             rating: 2,
             createdAt: new Date(Date.now() - 10800000),
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            callDetails: {
+              callSid: 'mock-sid-123',
+              phoneNumber: '+919876543212',
+              direction: 'inbound',
+              duration: 300,
+              startTime: new Date()
+            },
+            transcription: [],
+            aiAnalysis: {},
+            tags: []
           }
         ];
         setConversations(mockConversations);
@@ -195,13 +205,13 @@ export default function ConversationsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0a1128] to-slate-700 flex items-center justify-center text-[#81d8d0] font-bold">
-                        {conv.customer?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '??'}
+                        {(conv.customerId as any)?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '??'}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-slate-900">{conv.customer?.name || 'Unknown'}</h3>
+                          <h3 className="font-semibold text-slate-900">{(conv.customerId as any)?.name || 'Unknown'}</h3>
                           <span className="text-slate-400 text-sm">•</span>
-                          <span className="text-slate-500 text-sm">{conv.customer?.phoneNumber}</span>
+                          <span className="text-slate-500 text-sm">{(conv.customerId as any)?.phoneNumber}</span>
                         </div>
                         <p className="text-sm text-slate-500 mt-0.5">{conv.summary?.auto || 'No summary'}</p>
                       </div>

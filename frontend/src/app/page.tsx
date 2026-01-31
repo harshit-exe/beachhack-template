@@ -20,6 +20,10 @@ import {
   Store
 } from 'lucide-react';
 import axios from 'axios';
+import VisitorsChart from '@/components/widgets/VisitorsChart';
+import DeviceStats from '@/components/widgets/DeviceStats';
+import ActivityChart from '@/components/widgets/ActivityChart';
+import TaskList from '@/components/widgets/TaskList';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const AGENT_ID = 'demo-agent-001';
@@ -122,6 +126,31 @@ export default function DashboardHome() {
     }
   };
 
+  // Dashboard Stats State
+  const [stats, setStats] = useState({
+    kpi: { totalCalls: 0, avgHandleTime: '0:00', activeCustomers: 0, revenue: 0, csat: 0 },
+    activity: [],
+    sentiment: [],
+    tasks: [],
+    channels: []
+  });
+
+  // Fetch real dashboard stats
+  useEffect(() => {
+    const fetchStats = async () => {
+        try {
+            const { data } = await axios.get(`${API_URL}/api/dashboard/stats`);
+            setStats(data);
+        } catch (err) {
+            console.error('Failed to fetch dashboard stats:', err);
+        }
+    };
+    fetchStats();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden">
       {/* Left Sidebar - Navigation */}
@@ -164,35 +193,59 @@ export default function DashboardHome() {
         {/* Dashboard Content */}
         <div className="flex-1 p-6 overflow-auto">
           {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
-            <StatCard 
-              label="Today's Calls" 
-              value="12" 
-              icon={<Phone size={18} />}
-              trend="+3 from yesterday"
-              color="bg-blue-500"
-            />
-            <StatCard 
-              label="Avg Handle Time" 
-              value="4:32" 
-              icon={<Clock size={18} />}
-              trend="-12s improvement"
-              color="bg-emerald-500"
-            />
-            <StatCard 
-              label="Customer Satisfaction" 
-              value="4.8" 
-              icon={<TrendingUp size={18} />}
-              trend="+0.2 this week"
-              color="bg-amber-500"
-            />
-            <StatCard 
-              label="Active Customers" 
-              value="156" 
-              icon={<Users size={18} />}
-              trend="+8 new today"
-              color="bg-purple-500"
-            />
+          {/* Stats Grid - Row 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+             <StatCard 
+               label="Avg Handle Time" 
+               value={stats.kpi.avgHandleTime} 
+               icon={<Clock size={18} />}
+               trend="Real-time"
+               color="bg-indigo-500"
+             />
+             <StatCard 
+               label="Customer Satisfaction" 
+               value={stats.kpi.csat.toString()}
+               icon={<TrendingUp size={18} />}
+               trend="+0.2 this week"
+               color="bg-emerald-500"
+             />
+             <StatCard 
+               label="Active Customers" 
+               value={stats.kpi.activeCustomers.toString()}
+               icon={<Users size={18} />}
+               trend="Live Count"
+               color="bg-purple-500"
+             />
+             <StatCard 
+               label="Total Revenue" 
+               value={`₹${(stats.kpi.revenue / 1000).toFixed(1)}K`}
+               icon={<Store size={18} />}
+               trend="+12% growth"
+               color="bg-rose-500"
+             />
+          </div>
+
+          {/* Interactive Widget Grid - Bento Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+             
+             {/* Main Activity Graph (8 cols) */}
+             <div className="col-span-12 md:col-span-8 h-[320px]">
+                <ActivityChart data={stats.activity} />
+             </div>
+
+             {/* System Tasks (4 cols) */}
+             <div className="col-span-12 md:col-span-4 h-[320px]">
+                <TaskList data={stats.tasks} />
+             </div>
+
+             {/* Row 3: Call Dist + Visitors */}
+             <div className="col-span-12 md:col-span-5 h-[280px]">
+                <DeviceStats data={stats.sentiment} />
+             </div>
+             
+             <div className="col-span-12 md:col-span-7 h-[280px]">
+                <VisitorsChart data={stats.channels} />
+             </div>
           </div>
 
           {/* Ready for Calls Section */}

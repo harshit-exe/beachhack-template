@@ -38,4 +38,8 @@ router.put('/store', storeController.updateStore.bind(storeController));
 router.post('/store/products', storeController.addProduct.bind(storeController));
 router.delete('/store/products/:productId', storeController.deleteProduct.bind(storeController));
 
+// Dashboard routes
+const dashboardController = require('../controllers/dashboard.controller');
+router.get('/dashboard/stats', dashboardController.getDashboardStats.bind(dashboardController));
+
 module.exports = router;
