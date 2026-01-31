@@ -484,4 +484,77 @@ function buildContextString(customer) {
   return parts.join(' ') || 'Standard customer, no special context.';
 }
 
+/**
+ * GET /api/elevenlabs/store-inventory
+ * 
+ * ElevenLabs Tool Configuration:
+ * - Name: get_store_inventory
+ * - Description: Get the list of available products, prices, and store agenda. Use this when customer asks what you have in stock or about specific products.
+ * - Method: GET
+ * - URL: https://your-ngrok-url/api/elevenlabs/store-inventory
+ * - No parameters required
+ */
+router.get('/store-inventory', async (req, res) => {
+  try {
+    const StoreService = require('../services/store.service');
+    // Assuming single store for now or could take owner_id
+    const store = await StoreService.getStore(null);
+    
+    // Format for AI consumption
+    const inventoryText = store.getInventoryText();
+    const agenda = store.agenda || "No specific agenda today.";
+    
+    const context = {
+      success: true,
+      store_name: store.name,
+      agenda: agenda,
+      inventory_summary: inventoryText,
+      products: store.products.filter(p => p.inStock).map(p => ({
+        name: p.name,
+        price: p.price,
+        category: p.category,
+        description: p.description
+      }))
+    };
+    
+    console.log(`🏪 ElevenLabs: Store inventory requested.`);
+    res.json(context);
+    
+  } catch (error) {
+    console.error('Store inventory error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Also allow POST for tool compatibility
+router.post('/store-inventory', async (req, res) => {
+  // Same logic as GET
+  try {
+    const StoreService = require('../services/store.service');
+    const store = await StoreService.getStore(null);
+    
+    const inventoryText = store.getInventoryText();
+    const agenda = store.agenda || "No specific agenda today.";
+    
+    const context = {
+      success: true,
+      store_name: store.name,
+      agenda: agenda,
+      inventory_summary: inventoryText,
+      products: store.products.filter(p => p.inStock).map(p => ({
+        name: p.name,
+        price: p.price,
+        category: p.category,
+        description: p.description
+      }))
+    };
+    
+    console.log(`🏪 ElevenLabs: Store inventory requested (POST).`);
+    res.json(context);
+  } catch (error) {
+    console.error('Store inventory error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

@@ -1,0 +1,43 @@
+{
+  "type": "webhook",
+  "name": "get_store_inventory",
+  "description": "Get the list of available products, prices, and store agenda. Use this when customer asks what you have in stock or about specific products.",
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "assignments": [],
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "api_schema": {
+    "url": "https://YOUR_NGROK_URL/api/elevenlabs/store-inventory",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Payload",
+      "properties": [
+        {
+          "id": "query_reason",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Reason for querying inventory (optional context)",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "is_system_provided": false,
+          "required": false
+        }
+      ],
+      "required": false,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 10,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  }
+}

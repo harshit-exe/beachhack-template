@@ -1,0 +1,100 @@
+[
+  {
+    "name": "get_customer_context",
+    "description": "Get customer information including name, status, history, notes, and alerts. Call this at the start of conversation to personalize responses.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The customer's phone number"
+        }
+      },
+      "required": ["phone"]
+    }
+  },
+  {
+    "name": "update_customer_info",
+    "description": "Update customer information when they provide new details like name, email, company, or notes during conversation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The customer's phone number"
+        },
+        "name": {
+          "type": "string",
+          "description": "Customer's name"
+        },
+        "email": {
+          "type": "string",
+          "description": "Customer's email"
+        },
+        "company": {
+          "type": "string",
+          "description": "Customer's company name"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Important notes about the customer or conversation"
+        }
+      },
+      "required": ["phone"]
+    }
+  },
+  {
+    "name": "get_store_inventory",
+    "description": "Get the list of available products, prices, and store agenda. Use this when customer asks what you have in stock or about specific products.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "schedule_callback",
+    "description": "Schedule a callback for the customer at a specific time. Use when customer wants to be called back later.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The customer's phone number"
+        },
+        "datetime": {
+          "type": "string",
+          "description": "The date and time for the callback (e.g., 'tomorrow at 3pm')"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Reason for callback"
+        }
+      },
+      "required": ["phone", "datetime"]
+    }
+  },
+  {
+    "name": "transfer_to_human_agent",
+    "description": "Transfer the call to a human agent. Use when customer explicitly requests human help, has a complex issue, or when you cannot resolve their request.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The customer's phone number"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for transfer"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["normal", "high", "critical"],
+          "description": "Priority of the issue"
+        }
+      },
+      "required": ["phone", "reason"]
+    }
+  }
+]

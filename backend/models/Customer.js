@@ -86,6 +86,26 @@ const customerSchema = new mongoose.Schema({
     preferredLanguage: {
       type: String,
       default: 'en'
+    },
+    
+    // RICH CONTEXT FIELDS
+    keyDates: [{
+      label: { type: String, required: true }, // e.g., "Wife's Birthday"
+      date: { type: Date, required: true },
+      description: String
+    }],
+    
+    conversationSummaries: [{
+      date: { type: Date, default: Date.now },
+      summary: String,
+      keyTopics: [String],
+      sentiment: { type: String, enum: ['positive', 'neutral', 'negative'] },
+      actionItems: [String]
+    }],
+    
+    generatedProfile: {
+      type: String,
+      description: "AI-generated profile summary (e.g., 'Price sensitive, likes roses')"
     }
   },
   

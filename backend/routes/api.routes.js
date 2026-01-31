@@ -31,4 +31,11 @@ router.post('/ai/intent', aiController.detectIntent.bind(aiController));
 router.post('/ai/transcription', aiController.processTranscription.bind(aiController));
 router.get('/ai/summary/:conversationId', aiController.generateSummary.bind(aiController));
 
+// Store routes
+const storeController = require('../controllers/store.controller');
+router.get('/store', storeController.getStore.bind(storeController));
+router.put('/store', storeController.updateStore.bind(storeController));
+router.post('/store/products', storeController.addProduct.bind(storeController));
+router.delete('/store/products/:productId', storeController.deleteProduct.bind(storeController));
+
 module.exports = router;

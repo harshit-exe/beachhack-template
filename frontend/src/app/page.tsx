@@ -16,7 +16,8 @@ import {
   TrendingUp,
   Clock,
   Play,
-  FlaskConical
+  FlaskConical,
+  Store
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -162,6 +163,7 @@ export default function DashboardHome() {
           <NavIcon icon={<MessageSquare size={18} />} href="/conversations" />
           <NavIcon icon={<Users size={18} />} href="/customers" />
           <NavIcon icon={<Phone size={18} />} href="/calls" />
+          <NavIcon icon={<Store size={18} />} href="/store" />
         </nav>
         
         <div className="flex flex-col items-center gap-4">

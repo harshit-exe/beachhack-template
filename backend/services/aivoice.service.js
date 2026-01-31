@@ -35,63 +35,63 @@ class AIVoiceService {
   /**
    * Build conversation context from customer data
    */
-  buildSystemPrompt(customer, mode = 'general') {
+  async buildSystemPrompt(customer, mode = 'general') {
     const isVIP = customer?.status === 'vip';
     const isReturning = (customer?.metadata?.totalCalls || 0) > 1;
+    
+    // Import here to avoid circular dep if any
+    const StoreService = require('./store.service');
+    // Assuming single-agent for now or finding first store
+    const storeInventory = await StoreService.getInventoryForAI(null); 
     
     let basePrompt = `You are a helpful customer support AI assistant for ContextHub. 
 You are speaking on the phone, so keep responses conversational and concise (2-3 sentences max).
 Be warm, professional, and empathetic.`;
 
-    // Add customer context
+    // --- STORE CONTEXT ---
+    basePrompt += `\n\n--- STORE / INVENTORY CONTEXT ---`;
+    basePrompt += `\nAVAILABLE PRODUCTS:\n${storeInventory}`;
+    
+    // --- CUSTOMER CONTEXT ---
     if (customer) {
       basePrompt += `\n\n--- CUSTOMER CONTEXT ---`;
       basePrompt += `\nName: ${customer.name || 'Unknown'}`;
       basePrompt += `\nPhone: ${customer.phoneNumber}`;
       basePrompt += `\nStatus: ${customer.status || 'new'}${isVIP ? ' (VIP - treat with extra care)' : ''}`;
       
-      if (customer.email) {
-        basePrompt += `\nEmail: ${customer.email}`;
+      // AI Profile
+      if (customer.metadata?.generatedProfile) {
+        basePrompt += `\nPROFILE: ${customer.metadata.generatedProfile}`;
+      }
+      
+      // Key Dates
+      if (customer.metadata?.keyDates && customer.metadata.keyDates.length > 0) {
+        basePrompt += `\n\n📅 KEY DATES TO REMEMBER:`;
+        customer.metadata.keyDates.forEach(d => {
+          basePrompt += `\n- ${d.label}: ${new Date(d.date).toLocaleDateString()} (${d.description || ''})`;
+        });
+      }
+      
+      // Conversation Summaries (Context Memory)
+      if (customer.metadata?.conversationSummaries && customer.metadata.conversationSummaries.length > 0) {
+        basePrompt += `\n\n🧠 CONVERSATION HISTORY (Memory):`;
+        // Take last 3 summaries
+        const recentSummaries = customer.metadata.conversationSummaries
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 3);
+          
+        recentSummaries.forEach(s => {
+          basePrompt += `\n- [${new Date(s.date).toLocaleDateString()}]: ${s.summary}`;
+        });
       }
       
       if (customer.metadata) {
-        if (customer.metadata.company) {
-          basePrompt += `\nCompany: ${customer.metadata.company}`;
-        }
-        if (customer.metadata.totalCalls) {
-          basePrompt += `\nPrevious Calls: ${customer.metadata.totalCalls}`;
-        }
-        if (customer.metadata.lifetimeValue) {
-          basePrompt += `\nLifetime Value: ₹${customer.metadata.lifetimeValue}`;
-        }
-        if (customer.metadata.averageRating) {
-          basePrompt += `\nSatisfaction Rating: ${customer.metadata.averageRating}/5`;
+        if (customer.metadata.scheduledMeeting) {
+          basePrompt += `\n\n📅 UPCOMING MEETING: ${customer.metadata.scheduledMeeting}`;
         }
         if (customer.metadata.notes) {
           basePrompt += `\n\n📝 AGENT NOTES: ${customer.metadata.notes}`;
         }
-        if (customer.metadata.scheduledMeeting) {
-          basePrompt += `\n📅 Scheduled Meeting: ${customer.metadata.scheduledMeeting}`;
-        }
-      }
-      
-      // Active alerts
-      if (customer.alerts && customer.alerts.length > 0) {
-        const activeAlerts = customer.alerts.filter(a => !a.acknowledged);
-        if (activeAlerts.length > 0) {
-          basePrompt += `\n\n⚠️ ACTIVE ALERTS:`;
-          activeAlerts.forEach(a => {
-            basePrompt += `\n- [${a.type.toUpperCase()}] ${a.message}`;
-          });
-        }
-      }
-      
-      // Insights
-      if (customer.insights && customer.insights.length > 0) {
-        basePrompt += `\n\n💡 CUSTOMER INSIGHTS:`;
-        customer.insights.forEach(i => {
-          basePrompt += `\n- ${i.description}`;
-        });
       }
     }
     
@@ -106,9 +106,9 @@ This is a NEW CUSTOMER. Your goal is to:
 Keep it natural and conversational. Don't sound robotic.`;
     } else if (mode === 'support') {
       basePrompt += `\n\n--- YOUR TASK ---
-Help this customer with their inquiry. You have their full context above.
-If you cannot resolve their issue, offer to connect them with a human agent.
-If they mention billing, technical issues, or complex problems - suggest transferring to an agent.`;
+Help this customer. Use the AVAILABLE PRODUCTS list to answer questions about stock/prices.
+Reference their history if relevant (e.g. "How was your wife's birthday?" if reliable date).
+If you cannot resolve their issue, offer to connect them with a human agent.`;
     }
     
     return basePrompt;
@@ -123,7 +123,7 @@ If they mention billing, technical issues, or complex problems - suggest transfe
     }
 
     try {
-      const systemPrompt = this.buildSystemPrompt(customer, 'support');
+      const systemPrompt = await this.buildSystemPrompt(customer, 'support');
       
       // Build message history
       const messages = [

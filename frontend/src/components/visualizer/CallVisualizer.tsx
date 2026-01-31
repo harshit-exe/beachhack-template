@@ -68,7 +68,17 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
 }) => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [latestMessage, setLatestMessage] = useState<TranscriptEntry | null>(null);
+  const [activeTab, setActiveTab] = useState<'context' | 'store' | 'history'>('context');
+  const [storeProducts, setStoreProducts] = useState<any[]>([]);
   const prevLengthRef = useRef(0);
+
+  // Fetch store data on mount
+  useEffect(() => {
+    fetch('http://localhost:5001/api/store')
+      .then(res => res.json())
+      .then(data => setStoreProducts(data.products || []))
+      .catch(err => console.error('Failed to load store products', err));
+  }, []);
 
   useEffect(() => {
     if (transcripts.length > prevLengthRef.current) {
@@ -93,21 +103,185 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
     return () => clearInterval(pulse);
   }, [isActive, audioLevel]);
 
+  const renderContextTab = () => (
+    <div className="flex-1 flex flex-col gap-6 animate-in fade-in duration-300">
+      {/* Stats */}
+      <div className="flex gap-12 py-6 border-y border-slate-100">
+        <div>
+          <p className="text-4xl font-extralight text-slate-900">{customer?.totalCalls || 0}</p>
+          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Total Calls</p>
+        </div>
+        <div>
+          <p className="text-2xl font-light text-slate-900 capitalize">{customer?.status || 'New'}</p>
+          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Status</p>
+        </div>
+        <div>
+          <p className="text-2xl font-light text-slate-900">{isAIHandling ? 'AI Agent' : 'You'}</p>
+          <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Handler</p>
+        </div>
+      </div>
+
+      {/* Context Cards */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="py-5">
+          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Last Request</p>
+          <p className={`text-xl font-light leading-relaxed ${customer?.notes ? 'text-slate-900' : 'text-slate-300'}`}>
+            {customer?.notes || 'No previous request'}
+          </p>
+        </div>
+        <div className="py-5">
+          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Scheduled Meeting</p>
+          <p className={`text-xl font-light ${customer?.scheduledMeeting ? 'text-slate-900' : 'text-slate-300'}`}>
+            {customer?.scheduledMeeting || 'None scheduled'}
+          </p>
+        </div>
+      </div>
+
+      {/* AI Insights */}
+      <div className="flex-1 bg-slate-50 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">AI Insights</p>
+          <span className="flex items-center gap-2 text-slate-400 text-xs">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            Active
+          </span>
+        </div>
+        
+        <div className="space-y-3">
+          {(() => {
+            const insights = [];
+            // Real-time AI Suggestions
+            if (aiSuggestions && aiSuggestions.length > 0) {
+              aiSuggestions.forEach((suggestion, idx) => {
+                const isAlert = suggestion.type === 'alert' || suggestion.type === 'priority';
+                insights.push(
+                  <div key={`ai-${idx}`} className={`flex items-center gap-4 p-3 rounded-xl mb-2 ${isAlert ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+                    <Bot size={18} className={isAlert ? "text-rose-500" : "text-emerald-500"} />
+                    <div>
+                      <p className={`font-medium ${isAlert ? "text-rose-900" : "text-emerald-900"}`}>
+                        {isAlert ? 'Alert' : 'AI Suggestion'}
+                      </p>
+                      <p className={`text-sm font-medium mt-0.5 ${isAlert ? "text-rose-700" : "text-emerald-700"}`}>
+                        {suggestion.text}
+                      </p>
+                    </div>
+                  </div>
+                );
+              });
+            }
+            // Notes
+            if (customer?.notes) {
+              insights.push(
+                <div key="notes" className="flex items-center justify-between group cursor-pointer hover:bg-white rounded-xl p-3 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <MessageCircle size={18} className="text-slate-400" />
+                    <div>
+                      <p className="text-slate-900 font-medium">Previous Request</p>
+                      <p className="text-slate-500 text-sm font-light mt-0.5">"{customer.notes}"</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            // Fallbacks
+            if (insights.length === 0) {
+              insights.push(
+                <div key="listening" className="flex items-center gap-3 text-slate-400 p-3">
+                  <Mic size={16} className="animate-pulse" />
+                  <p className="text-sm font-light">Listening for context...</p>
+                </div>
+              );
+            }
+            return insights;
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStoreTab = () => (
+    <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
+      <div className="flex items-center justify-between">
+         <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Quick Inventory</p>
+         <span className="text-xs font-medium text-slate-500">{storeProducts.length} items</span>
+      </div>
+      <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+        {storeProducts.map((product: any) => (
+          <div key={product._id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-300 hover:shadow-sm transition-all bg-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-medium text-slate-900">{product.name}</p>
+                <p className="text-xs text-slate-500 mt-1">{product.description}</p>
+                <span className="inline-block mt-2 px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded-md">
+                  {product.category}
+                </span>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-lg font-light text-slate-900">₹{product.price}</p>
+                {product.inStock ? (
+                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">In Stock</span>
+                ) : (
+                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Out of Stock</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {storeProducts.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <p>No products loaded.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderHistoryTab = () => (
+    <div className="flex-1 flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
+       <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">Conversation History</p>
+       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+          {/* Mock Histories for UI if real ones absent */}
+          {(!customer?.notes && !customer?.scheduledMeeting) ? (
+             <div className="space-y-4">
+               {[1, 2, 3].map(i => (
+                 <div key={i} className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                   <div className="flex items-center justify-between mb-2">
+                     <span className="text-xs font-bold text-slate-500">Jan {20 - i}, 2026</span>
+                     <span className="px-2 py-0.5 bg-white text-slate-600 rounded text-[10px] font-bold border border-slate-200">
+                       Resolved
+                     </span>
+                   </div>
+                   <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                     Customer inquired about premium bouquet options for an anniversary. Discussed red roses vs orchids.
+                   </p>
+                   <div className="mt-3 flex gap-2">
+                     <span className="text-[10px] text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">#inquiry</span>
+                     <span className="text-[10px] text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">#flowers</span>
+                   </div>
+                 </div>
+               ))}
+             </div>
+          ) : (
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+              <p className="text-sm text-slate-600">
+                {customer?.notes || 'No detailed history available.'}
+              </p>
+            </div>
+          )}
+       </div>
+    </div>
+  );
+
   return (
     <div className="h-full bg-white rounded-3xl p-8 flex gap-8">
       
       {/* LEFT: Globe + Voice (35%) */}
       <div className="w-[35%] flex flex-col">
-        
         {/* Globe Card - Minimal */}
         <div className="flex-1 bg-slate-950 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden">
-          
-          {/* Globe */}
           <div className="w-full max-w-[180px] aspect-square">
             <VisualizerScene audioLevel={audioLevel} isActive={isActive} />
           </div>
-          
-          {/* Timer */}
           <div className="mt-6 text-center">
             <p className="text-slate-500 text-xs font-medium tracking-[0.2em] uppercase mb-1">
               {isAIHandling ? 'AI Handling' : 'Live Call'}
@@ -116,8 +290,6 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
               {callDuration}
             </p>
           </div>
-
-          {/* Transcript */}
           <div className="mt-6 w-full">
             {latestMessage ? (
               <div className="bg-white/5 rounded-2xl p-4">
@@ -140,21 +312,16 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
             )}
           </div>
         </div>
-
-        {/* Actions */}
         <div className="mt-4 space-y-3">
           {isAIHandling ? (
             <button onClick={onReclaimCall} className="w-full py-4 rounded-2xl bg-slate-900 text-white text-sm font-medium tracking-wide hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-              <UserCheck size={18} />
-              Take Over Call
+              <UserCheck size={18} /> Take Over Call
             </button>
           ) : (
             <button onClick={onTransferToAI} className="w-full py-4 rounded-2xl bg-slate-900 text-white text-sm font-medium tracking-wide hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-              <Bot size={18} />
-              Transfer to AI
+              <Bot size={18} /> Transfer to AI
             </button>
           )}
-          
           <div className="grid grid-cols-4 gap-2">
             {[
               { icon: Gift, label: 'Offer' },
@@ -171,7 +338,7 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
         </div>
       </div>
 
-      {/* RIGHT: Context (65%) */}
+      {/* RIGHT: Context Tabs (65%) */}
       <div className="flex-1 flex flex-col gap-6">
         
         {/* Customer Header */}
@@ -197,158 +364,33 @@ const CallVisualizer: React.FC<CallVisualizerProps> = ({
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-12 py-6 border-y border-slate-100">
-          <div>
-            <p className="text-4xl font-extralight text-slate-900">{customer?.totalCalls || 0}</p>
-            <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Total Calls</p>
-          </div>
-          <div>
-            <p className="text-2xl font-light text-slate-900 capitalize">{customer?.status || 'New'}</p>
-            <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Status</p>
-          </div>
-          <div>
-            <p className="text-2xl font-light text-slate-900">{isAIHandling ? 'AI Agent' : 'You'}</p>
-            <p className="text-slate-400 text-[10px] font-medium tracking-[0.15em] uppercase mt-1">Handler</p>
-          </div>
+        {/* Tabs */}
+        <div className="flex border-b border-slate-100 gap-8">
+          {[
+            { id: 'context', label: 'Context & AI' },
+            { id: 'store', label: 'Product Catalog' },
+            { id: 'history', label: 'Call History' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`pb-4 text-xs font-bold tracking-[0.15em] uppercase transition-colors relative ${
+                activeTab === tab.id ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-900 rounded-full" />
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Context Cards */}
-        <div className="grid grid-cols-2 gap-6">
-          {/* Notes */}
-          <div className="py-5">
-            <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Last Request</p>
-            <p className={`text-xl font-light leading-relaxed ${customer?.notes ? 'text-slate-900' : 'text-slate-300'}`}>
-              {customer?.notes || 'No previous request'}
-            </p>
-          </div>
+        {/* Tab Content */}
+        {activeTab === 'context' && renderContextTab()}
+        {activeTab === 'store' && renderStoreTab()}
+        {activeTab === 'history' && renderHistoryTab()}
 
-          {/* Meeting */}
-          <div className="py-5">
-            <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase mb-3">Scheduled Meeting</p>
-            <p className={`text-xl font-light ${customer?.scheduledMeeting ? 'text-slate-900' : 'text-slate-300'}`}>
-              {customer?.scheduledMeeting || 'None scheduled'}
-            </p>
-          </div>
-        </div>
-
-        {/* AI Insights */}
-        <div className="flex-1 bg-slate-50 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <p className="text-slate-400 text-[10px] font-semibold tracking-[0.2em] uppercase">AI Insights</p>
-            <span className="flex items-center gap-2 text-slate-400 text-xs">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              Active
-            </span>
-          </div>
-          
-          <div className="space-y-3">
-            {/* Build insights array and always render */}
-            {(() => {
-              const insights = [];
-
-              // Real-time AI Suggestions (High Priority)
-              if (aiSuggestions && aiSuggestions.length > 0) {
-                aiSuggestions.forEach((suggestion, idx) => {
-                  const isAlert = suggestion.type === 'alert' || suggestion.type === 'priority';
-                  insights.push(
-                    <div key={`ai-${idx}`} className={`flex items-center gap-4 p-3 rounded-xl mb-2 ${isAlert ? 'bg-rose-50' : 'bg-emerald-50'}`}>
-                      <Bot size={18} className={isAlert ? "text-rose-500" : "text-emerald-500"} />
-                      <div>
-                        <p className={`font-medium ${isAlert ? "text-rose-900" : "text-emerald-900"}`}>
-                          {isAlert ? 'Alert' : 'AI Suggestion'}
-                        </p>
-                        <p className={`text-sm font-medium mt-0.5 ${isAlert ? "text-rose-700" : "text-emerald-700"}`}>
-                          {suggestion.text}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                });
-              }
-              
-              // Notes insight
-              if (customer?.notes) {
-                insights.push(
-                  <div key="notes" className="flex items-center justify-between group cursor-pointer hover:bg-white rounded-xl p-3 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <MessageCircle size={18} className="text-slate-400" />
-                      <div>
-                        <p className="text-slate-900 font-medium">Previous Request</p>
-                        <p className="text-slate-500 text-sm font-light mt-0.5">"{customer.notes}"</p>
-                      </div>
-                    </div>
-                    <ArrowRight size={16} className="text-slate-300 group-hover:text-slate-600 transition-colors" />
-                  </div>
-                );
-              }
-              
-              // VIP insight
-              if (customer?.status === 'vip') {
-                insights.push(
-                  <div key="vip" className="flex items-center gap-4 p-3">
-                    <Star size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-slate-900 font-medium">VIP Customer</p>
-                      <p className="text-slate-500 text-sm font-light mt-0.5">Prioritize and offer premium support</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Returning customer
-              if (customer?.totalCalls && customer.totalCalls > 1) {
-                insights.push(
-                  <div key="returning" className="flex items-center gap-4 p-3">
-                    <Phone size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-slate-900 font-medium">Returning Customer</p>
-                      <p className="text-slate-500 text-sm font-light mt-0.5">{customer.totalCalls} calls — reference history</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Scheduled meeting
-              if (customer?.scheduledMeeting) {
-                insights.push(
-                  <div key="meeting" className="flex items-center gap-4 p-3">
-                    <Calendar size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-slate-900 font-medium">Meeting Scheduled</p>
-                      <p className="text-slate-500 text-sm font-light mt-0.5">{customer.scheduledMeeting}</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // New customer fallback
-              if (insights.length === 0 || (!customer?.notes && customer?.totalCalls && customer.totalCalls <= 1)) {
-                insights.push(
-                  <div key="new" className="flex items-center gap-4 p-3">
-                    <Bot size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-slate-900 font-medium">New Customer</p>
-                      <p className="text-slate-500 text-sm font-light mt-0.5">Introduce services and collect details</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Always show listening if empty
-              if (insights.length === 0) {
-                insights.push(
-                  <div key="listening" className="flex items-center gap-3 text-slate-400 p-3">
-                    <Mic size={16} className="animate-pulse" />
-                    <p className="text-sm font-light">Listening for context...</p>
-                  </div>
-                );
-              }
-              
-              return insights;
-            })()}
-          </div>
-        </div>
       </div>
     </div>
   );
